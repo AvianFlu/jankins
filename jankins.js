@@ -7,7 +7,9 @@ var
   Jenkins = require('./jenkins'),
   PullReq = require('./pullrequests'),
   redis = require('redis'),
-  restify = require('restify');
+  restify = require('restify'),
+  request = require('request'),
+  url = require('url');
 
 var jenkins = Jenkins({
   hostname: config.JENKINS_HOSTNAME,
@@ -42,6 +44,38 @@ var proxy = new httpProxy.HttpProxy({
 
 server.on('NotFound', function (req, res, next) {
   proxy.proxyRequest(req, res);
+});
+
+server.post(/\/github-webhook\/?/, function (req, res, next) {
+  var payload;
+
+  if (req.params.payload) {
+    try {
+      payload = JSON.parse(req.params.payload)
+    } catch (e) {
+    }
+  } else {
+    payload = req.params;
+  }
+
+  if (payload) server.emit('github', payload);
+
+  console.log('proxy');
+  // this isn't as robust as we want because of redirects?
+  //proxy.proxyRequest(req, res);
+  var u = url.format({
+    protocol: 'http',
+    hostname: config.JENKINS_HOSTNAME,
+    pathname: req.path(),
+    port: config.JENKINS_PORT,
+  });
+    
+  payload = {payload: JSON.stringify(payload)};
+  console.log(u, payload);
+  request.post({url: u, form: payload, followAllRedirects: true}, function () {
+    res.send(200);
+    return next();
+  });
 });
 
 var db = redis.createClient();

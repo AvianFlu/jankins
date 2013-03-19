@@ -17,31 +17,17 @@ var PullReq = module.exports = function (opts) {
     self.interest = obj ? JSON.parse(obj) : {};
   });
 
-  this.server.post('/github', this.github.bind(this));
+  this.server.on('github', this.github.bind(this));
   this.server.get('/:user/:repo/pull/:id', this.getPR.bind(this));
   this.server.post('/:user/:repo/pull/:id', this.buildPR.bind(this));
 
   this.jenkins.on('message', this.message.bind(this));
 };
 
-PullReq.prototype.github = function (req, res, next) {
-  var payload;
-
-  if (req.params.payload) {
-    try {
-      payload = JSON.parse(req.params.payload)
-    } catch (e) {
-    }
-  } else {
-    payload = req.params;
-  }
+PullReq.prototype.github = function (payload) {
 
   //TODO
-
-  console.log(payload);
-
-  res.send(200);
-  return next();
+  //console.log(payload);
 };
 
 PullReq.prototype.getPR = function (req, res, next) {
