@@ -1,0 +1,14 @@
+{
+  "name": "jankins",
+  "version": "0.0.1",
+  "author": "Timothy J Fontaine <tj.fontaine@joyent.com>",
+  "description": "workarounds for janky jenkins",
+  "main": "jankins.js",
+  "dependencies": {
+    "http-proxy": ">=0.10.0",
+    "redis": ">= 0.8.2",
+    "restify": ">= 2.3.4",
+    "request": ">= 2.14.0",
+    "slide": ">= 1.1.3"
+  }
+}
