@@ -1,0 +1,31 @@
+<html>
+  <head>
+    <title>Nightliies</title>
+    <script src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
+    <script type="text/javascript">
+$(function () {
+$.getJSON('/nightly/nodejs-master-fnt', function(data) {
+  var i, j, k;
+  var html = '<ul>';
+  for (i in data) {
+    html += '<li>'+i+'<ul>';
+    for (j in data[i]) {
+      html += '<li>' + j + '<ul>';
+      for (k in data[i][j]) {
+        if (data[i][j][k].name.match(/\.tap$/)) continue;
+        html += '<li><a href="' + data[i][j][k].url + '">' + data[i][j][k].name + '</a></li>';
+      }
+      html += '</ul></li>';
+    }
+    html += '</ul></li>';
+  }
+  html += '</ul>';
+  $('#nightlies').html(html);
+});
+})
+    </script>
+  </head>
+  <body>
+  <div id="nightlies"/>  
+  </body>
+</html>

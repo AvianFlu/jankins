@@ -2,9 +2,12 @@
 
 var
   Benchmark = require('./benchit'),
+  bunyan = require('bunyan'),
   config = require('./config'),
   httpProxy = require('http-proxy'),
   Jenkins = require('./jenkins'),
+  Nightlies = require('./nightlies'),
+  path = require('path'),
   PullReq = require('./pullrequests'),
   redis = require('redis'),
   restify = require('restify'),
@@ -33,6 +36,15 @@ server
 //.use(restify.conditionalRequest())
 ;
 
+/*
+server.on('after', restify.auditLogger({
+  log: bunyan.createLogger({
+    name: 'audit',
+    stream: process.stdout
+  })
+}));
+*/
+
 server.listen(config.BIND_PORT, config.BIND_IP);
 
 var proxy = new httpProxy.HttpProxy({
@@ -60,7 +72,6 @@ server.post(/\/github-webhook\/?/, function (req, res, next) {
 
   if (payload) server.emit('github', payload);
 
-  console.log('proxy');
   // this isn't as robust as we want because of redirects?
   //proxy.proxyRequest(req, res);
   var u = url.format({
@@ -78,6 +89,10 @@ server.post(/\/github-webhook\/?/, function (req, res, next) {
   });
 });
 
+server.get(/static\/.*/, restify.serveStatic({
+  directory: __dirname,
+}));
+
 var db = redis.createClient();
 
 var opts = {
@@ -89,3 +104,4 @@ var opts = {
 
 var PR = PullReq(opts);
 //var BM = Benchmark(opts);
+var NL = Nightlies(opts);

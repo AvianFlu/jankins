@@ -83,7 +83,7 @@ Jenkins.prototype._api = function (command, parameters, json, cb) {
 
   url += '?' + qs.stringify(parameters);
 
-  //console.log(url);
+  console.log(url);
 
   request.get({url:url, json:true}, function (e, r, b) {
     if (cb) cb(e, r, b);
@@ -135,21 +135,32 @@ Jenkins.prototype.build = function (job, parameters, cb) {
   this._api(['job', job, 'buildWithParameters'], parameters, false, cb);
 };
 
-Jenkins.prototype.buildReport = function (job, id, cb) {
+Jenkins.prototype.buildReport = function (job, id, args, cb) {
+  var command = [
+    'job',
+    job,
+  ];
+
   if (!cb) {
-    cb = id;
+    cb = args;
+    args = id;
     id = undefined;
   }
 
-  var args = {
-    depth: 10,
-  };
+  if (!cb) {
+    cb = args;
+    args = { depth: 10 };
+  }
 
-  this._api(['job', job, id || 'lastCompletedBuild'], args, cb);
+  if (id) {
+    command.push(id);
+  }
+
+  this._api(command, args, cb);
 };
 
 Jenkins.prototype.artifacts = function (job, files, id, cb) {
-  this.buildReport(job, id, function (e, r, report) {
+  this.buildReport(job, id, {depth: 10}, function (e, r, report) {
     var urls = [], i, j, run, artifact;
     for (i in report.runs) {
       run = report.runs[i];
