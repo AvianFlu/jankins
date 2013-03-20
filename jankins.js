@@ -89,7 +89,7 @@ server.post(/\/github-webhook\/?/, function (req, res, next) {
   });
 });
 
-server.get(/static\/.*/, restify.serveStatic({
+server.get(/html\/.*/, restify.serveStatic({
   directory: __dirname,
 }));
 

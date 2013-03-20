@@ -5,7 +5,7 @@ var Nightlies = module.exports = function (opts) {
  
   opts.server.get('/nightly/:repo', this.nightlies.bind(this));
   opts.server.get('/nightlies', function (req, res, next) {
-    res.setHeader('Location', '/static/nightlies.html');
+    res.setHeader('Location', '/html/nightlies.html');
     res.send(302);
     return next();
   });
