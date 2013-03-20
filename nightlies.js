@@ -23,8 +23,6 @@ Nightlies.prototype.nightlies = function (req, res, next) {
         if (platform) key = platform[1];
         if (arch) key += '-' + arch[1];
 
-        console.log(key, arch, platform)
-
         var sub = result[key] = result[key] || [];
         run.artifacts.forEach(function (artifact) {
           if (!artifact) return;

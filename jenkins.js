@@ -83,7 +83,7 @@ Jenkins.prototype._api = function (command, parameters, json, cb) {
 
   url += '?' + qs.stringify(parameters);
 
-  console.log(url);
+  //console.log(url);
 
   request.get({url:url, json:true}, function (e, r, b) {
     if (cb) cb(e, r, b);
