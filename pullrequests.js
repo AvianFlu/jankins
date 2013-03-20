@@ -13,8 +13,12 @@ var PullReq = module.exports = function (opts) {
 
   var self = this;
 
+  this.interest_idles = {};
   self.db.get('pullrequest-interest', function (err, obj) {
     self.interest = obj ? JSON.parse(obj) : {};
+    Object.keys(self.interest).forEach(function (interest) {
+      self.interest_idles = setTimeout(self.uninterest.bind(self, interest), 60 * 60 * 1000);
+    });
   });
 
   this.server.on('github', this.github.bind(this));
@@ -23,6 +27,15 @@ var PullReq = module.exports = function (opts) {
 
   this.jenkins.on('message', this.message.bind(this));
 };
+
+PullReq.prototype.uninterest = function (interested) {
+  var pr = this.interest[interested];
+  delete this.interest[interested];
+  var idle = this.interest_idles[interested];
+  if (idle) clearTimeout(idle);
+  delete this.interest_idles[interested];
+  this.db.del(pr);
+});
 
 PullReq.prototype.github = function (payload) {
 
@@ -80,6 +93,7 @@ PullReq.prototype.buildPR = function (req, res, next) {
       pr.url = jurl;
 
       self.interest[jurl] = req.path();
+      self.interest_idles[jurl] = setTimeout(self.uninterest.bind(self, interest), 60 * 60 * 1000);
 
       self.db.set('pullrequest-interest', JSON.stringify(self.interest), function (err, rres) {
         // TODO cancel interest?
@@ -105,6 +119,10 @@ PullReq.prototype.message = function (msg) {
     if (!interested) return;
 
     delete self.interest[msg.build.full_url];
+    var idle = self.interest_idles[msg.build.full_url];
+    if (idle)
+      clearTimeout(idle);
+    delete self.interest_idles[msg.build.full_url];
     self.db.set('pullrequest-interest', JSON.stringify(self.interest));
 
     self.db.get(interested, function (err, pr) {
@@ -116,7 +134,7 @@ PullReq.prototype.message = function (msg) {
       self.jenkins.artifacts(msg.name, ['test.tap'], msg.build.number, function (errs, results, report) {
         var i, platform, arch, result, key, file;
         // TODO store multiple results
-        result = pr.result = pr.result || {};
+        result = pr.result = {};
 
         for (i in results) {
           if (!i) return;
