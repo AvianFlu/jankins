@@ -35,7 +35,7 @@ PullReq.prototype.uninterest = function (interested) {
   if (idle) clearTimeout(idle);
   delete this.interest_idles[interested];
   this.db.del(pr);
-});
+};
 
 PullReq.prototype.github = function (payload) {
 
