@@ -29,6 +29,7 @@ var PullReq = module.exports = function (opts) {
 };
 
 PullReq.prototype.uninterest = function (interested) {
+  console.log('uninterest', interested);
   var pr = this.interest[interested];
   delete this.interest[interested];
   var idle = this.interest_idles[interested];
@@ -93,7 +94,7 @@ PullReq.prototype.buildPR = function (req, res, next) {
       pr.url = jurl;
 
       self.interest[jurl] = req.path();
-      self.interest_idles[jurl] = setTimeout(self.uninterest.bind(self, interest), 60 * 60 * 1000);
+      self.interest_idles[jurl] = setTimeout(self.uninterest.bind(self, jurl), 60 * 60 * 1000);
 
       self.db.set('pullrequest-interest', JSON.stringify(self.interest), function (err, rres) {
         // TODO cancel interest?
