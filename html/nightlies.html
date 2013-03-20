@@ -1,31 +1,51 @@
+<!doctype html>
 <html>
-  <head>
-    <title>Nightliies</title>
-    <script src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
-    <script type="text/javascript">
-$(function () {
-$.getJSON('/nightly/nodejs-master-fnt', function(data) {
-  var i, j, k;
-  var html = '<ul>';
-  for (i in data) {
-    html += '<li>'+i+'<ul>';
-    for (j in data[i]) {
-      html += '<li>' + j + '<ul>';
-      for (k in data[i][j]) {
-        if (data[i][j][k].name.match(/\.tap$/)) continue;
-        html += '<li><a href="' + data[i][j][k].url + '">' + data[i][j][k].name + '</a></li>';
-      }
-      html += '</ul></li>';
+<head>
+  <meta charset="utf-8">
+  <title>Nightlies</title>
+  <script src="http://cdnjs.cloudflare.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+  <script>
+    (function(a,c){function b(g,f){for(var h in g){f.setAttribute(h,g[h])}return f}function d(f){return typeof f==="string"||typeof f==="number"}function e(f){var k=f[0].nodeType?f[0]:a.createElement(f[0]),h=1,g;for(;h<f.length;h++){if(Array.isArray(f[h])){if(Array.isArray(f[h][0])){for(g=0;g<f[h].length;g++){k.appendChild(e(f[h][g]))}}else{k.appendChild(e(f[h]))}}else{if(d(f[h])){k.appendChild(a.createTextNode(f[h]))}else{if(f[h].nodeType){k.appendChild(f[h])}else{b(f[h],k)}}}}return k}c.jqml=e}(document,this));
+  </script>
+  <link href='http://fonts.googleapis.com/css?family=Titillium+Web' rel='stylesheet' type='text/css'>
+  <style>
+    body {
+      font-family: 'Titillium Web', sans-serif;
+      width: 900px;
+      margin: auto;
     }
-    html += '</ul></li>';
+    ul {
+      list-style: none;
+    }
+  </style>
+  <script>
+  $(function () {
+    $.getJSON('/nightly/nodejs-master-fnt', function(data) {
+      document.querySelector('#nightlies').appendChild(build(data));
+    });
+  })
+
+  function build(data) {
+    var html = ['ul'];
+    var l1, l2, item, i, j, k;
+    for (i in data) {
+      l1 = ['ul']
+      html.push(['li', ['span', {'class':'li-title'}, i], l1]);
+      for (j in data[i]) {
+        item = data[i][j];
+        l2 = ['ul'];
+        l1.push(['li', ['span', {'class':'li-title'}, j], l2]);
+        for (k = 0; k < item.length; k++) {
+          if (!item[k].name.match(/\.tap$/))
+            l2.push(['a', {'href': item[k].url}, item[k].name]);
+        }
+      }
+    }
+    return jqml(html);
   }
-  html += '</ul>';
-  $('#nightlies').html(html);
-});
-})
-    </script>
-  </head>
-  <body>
-  <div id="nightlies"/>  
-  </body>
+  </script>
+</head>
+<body>
+  <div id="nightlies"></div>
+</body>
 </html>
