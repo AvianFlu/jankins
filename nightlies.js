@@ -4,6 +4,11 @@ var Nightlies = module.exports = function (opts) {
   this.jenkins = opts.jenkins;
  
   opts.server.get('/nightly/:repo', this.nightlies.bind(this));
+  opts.server.get('/nightlies', function (req, res, next) {
+    res.setHeader('Location', '/static/nightlies.html');
+    res.send(302);
+    return next();
+  });
 };
 
 Nightlies.prototype.nightlies = function (req, res, next) {
