@@ -1,6 +1,9 @@
 'use strict';
 
-var Jenkins = require('./jenkins');
+var Jenkins = require('./jenkins'),
+  request = require('request'),
+  slide = require('slide'),
+  tap = require('tap');
 
 var PullReq = module.exports = function (opts) {
   if (!(this instanceof PullReq)) return new PullReq(opts);
@@ -13,12 +16,9 @@ var PullReq = module.exports = function (opts) {
 
   var self = this;
 
-  this.interest_idles = {};
   self.db.get('pullrequest-interest', function (err, obj) {
     self.interest = obj ? JSON.parse(obj) : {};
-    Object.keys(self.interest).forEach(function (interest) {
-      self.interest_idles = setTimeout(self.uninterest.bind(self, interest), 60 * 60 * 1000);
-    });
+    self.checkState();
   });
 
   this.server.on('github', this.github.bind(this));
@@ -26,16 +26,29 @@ var PullReq = module.exports = function (opts) {
   this.server.post('/:user/:repo/pull/:id', this.buildPR.bind(this));
 
   this.jenkins.on('message', this.message.bind(this));
+
+  setInterval(this.checkState.bind(this), 10 * 60 * 1000);
 };
 
-PullReq.prototype.uninterest = function (interested) {
-  console.log('uninterest', interested);
-  var pr = this.interest[interested];
-  delete this.interest[interested];
-  var idle = this.interest_idles[interested];
-  if (idle) clearTimeout(idle);
-  delete this.interest_idles[interested];
-  this.db.del(pr);
+PullReq.prototype.checkState = function () {
+  var self = this;
+  var urls = Object.keys(this.interest);
+  var qs = {
+    depth: 0,
+  };
+  slide.asyncMap(urls, function (url, cb) {
+    request.get({url: url + '/api/json', qs: qs, json: true}, function (e, r, b) {
+      if (e) {
+        console.log(e);
+        return cb();
+      }
+      if (b.building === false) {
+        self.finished(url);
+        //console.log(b);
+        cb();
+      }
+    });
+  }, function () {});
 };
 
 PullReq.prototype.github = function (payload) {
@@ -94,7 +107,6 @@ PullReq.prototype.buildPR = function (req, res, next) {
       pr.url = jurl;
 
       self.interest[jurl] = req.path();
-      self.interest_idles[jurl] = setTimeout(self.uninterest.bind(self, jurl), 60 * 60 * 1000);
 
       self.db.set('pullrequest-interest', JSON.stringify(self.interest), function (err, rres) {
         // TODO cancel interest?
@@ -112,69 +124,94 @@ PullReq.prototype.buildPR = function (req, res, next) {
   });
 };
 
-PullReq.prototype.message = function (msg) {
+PullReq.prototype.finished = function (jurl) {
   var self = this;
 
-  if (msg.build && msg.build.phase == 'FINISHED') {
-    var interested = self.interest[msg.build.full_url];
-    if (!interested) return;
+  var qs = {
+    depth: 2,
+  }
 
-    delete self.interest[msg.build.full_url];
-    var idle = self.interest_idles[msg.build.full_url];
-    if (idle)
-      clearTimeout(idle);
-    delete self.interest_idles[msg.build.full_url];
-    self.db.set('pullrequest-interest', JSON.stringify(self.interest));
+  var interested = self.interest[jurl];
+  if (!interested) return;
+
+  request.get({url: jurl + '/api/json', qs: qs, json: true}, function (e, r, build) {
+    if (!build || e) {
+      console.log(e);
+      console.log(r);
+      return;
+    }
 
     self.db.get(interested, function (err, pr) {
-      if (!pr) return;
+      if (!pr) {
+        pr = {};
+      } else {
+        pr = JSON.parse(pr);
+      }
 
-      pr = JSON.parse(pr);
+      if (pr.lastBuild > build.number) {
+        console.log('historical build, dropped', jurl, build.number);
+        return;
+      } else {
+        console.log('finished', jurl, pr);
+      }
 
-      // TODO what if they have multiple test plans?
-      self.jenkins.artifacts(msg.name, ['test.tap'], msg.build.number, function (errs, results, report) {
-        var i, platform, arch, result, key, file;
-        // TODO store multiple results
-        result = pr.result = {};
+      var urls = [];
+      build.runs.forEach(function (run) {
+        if (run.number != build.number) return;
 
-        for (i in results) {
-          if (!i) return;
+        run.artifacts.forEach(function (artifact) {
+          if (artifact.fileName.match(/\.tap$/i)) {
+            urls.push(run.url + 'artifact/' + artifact.relativePath);
+          }
+        });
+      });
 
-          // TODO don't make this so job specific
-          platform = i.match(/label=(\w+)/);
-          platform = platform ? platform[1] : '';
-          arch = i.match(/DESTCPU=(\w+)/);
-          arch = arch ? arch[1] : '';
+      var results = {};
+      slide.asyncMap(urls, function (url, cb) {
+        var platform, arch, key, testresults;
 
-          key = platform;
-          if (arch) key += '-' + arch;
+        platform = url.match(/label=(\w+)/);
+        platform = platform ? platform[1] : '';
+        arch = url.match(/DESTCPU=(\w+)/);
+        arch = arch ? arch[1] : '';
 
-          result[key] = [];
+        key = platform;
+        if (arch) key += '-' + arch;
 
-          file = results[i];
+        testresults = tap.createConsumer();
+        results[key] = [];
 
-          file.split(/\n/).forEach(function (line) {
-            if (!line || !line.trim() || line.match(/^(ok|1|#|Tap)/i)) return;
-
-            var match = line.match(/^not ok (\d+) - (.*)/);
-
-            if (match) {
-              result[key].push({
-                url: i,
-                number: +match[1],
-                desc: match[2]
+        request.get(url).pipe(testresults).once('end', function () {
+          testresults.results.list.forEach(function (test) {
+            if (!test.ok) {
+              results[key].push({
+                url: url,
+                number: test.id,
+                desc: test.name,
               });
             }
           });
-        }
 
-        pr.status = msg.build.status;
-        pr.url = msg.build.full_url;
+          cb();
+        });
+      }, function () {
+        pr.status = build.result;
+        pr.url = jurl;
+        pr.result = results;
 
         self.db.set(interested, JSON.stringify(pr), function (err, res) {
           // TODO trigger any websockets?
         });
+
+        delete self.interest[jurl];
+        self.db.set('pullrequest-interest', JSON.stringify(self.interest));
       });
     });
+  });
+};
+
+PullReq.prototype.message = function (msg) {
+  if (msg.build && msg.build.phase == 'FINISHED') {
+    this.finished(msg.build.full_url);
   }
 };
