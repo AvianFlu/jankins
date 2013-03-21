@@ -73,7 +73,7 @@ Jenkins.prototype._api = function (command, parameters, json, cb) {
     parameters = {};
   }
 
-  if (command.length > 1 && command[0])
+  if (command.length >= 1 && command[0])
     command.unshift('');
 
   if (json)
@@ -183,5 +183,11 @@ Jenkins.prototype.artifacts = function (job, files, id, cb) {
     }, function () {
       cb(errs, results, report);
     });
+  });
+};
+
+Jenkins.prototype.validUser = function (cb) {
+  this._api('me', {}, true, function (e, r, b) {
+    cb(r.statusCode === 200);
   });
 };

@@ -1,4 +1,5 @@
 var GoogleClientLogin = require("googleclientlogin").GoogleClientLogin;
+var Jenkins = require('./jenkins');
 var request = require('request');
 
 var CLA = module.exports = function (opts) {
@@ -7,17 +8,38 @@ var CLA = module.exports = function (opts) {
 
   var self = this;
 
+  function validUser (req, res, next, cb) {
+    if (!req.query.JENKINS_USERNAME || !req.query.JENKINS_API_TOKEN)
+      return next(new Error('You must supply a Jenkins username and api key'));
+
+    var jenkins = new Jenkins({
+      hostname: self.config.JENKINS_HOSTNAME,
+      port: self.config.JENKINS_PORT,
+      username: req.query.JENKINS_USERNAME,
+      password: req.query.JENKINS_API_TOKEN,
+    });
+
+    jenkins.validUser(function (valid) {
+      if (!valid) return next(new Error('You must supply valid Jenkins credentials'));
+      cb();
+    });
+  }
+
   opts.server.get('/cla/email/:email', function (req, res, next) {
-    self.email(req.params.email, function (entry) {
-      res.json(200, entry);
-      return next();
+    validUser(req, res, next, function () {
+      self.email(req.params.email, function (entry) {
+        res.json(200, entry);
+        return next();
+      });
     });
   });
 
   opts.server.get('/cla/fullname/:fullname', function (req, res, next) {
-    self.fullname(req.params.fullname, function (entry) {
-      res.json(200, entry || {});
-      return next();
+    validUser(req, res, next, function () {
+      self.fullname(req.params.fullname, function (entry) {
+        res.json(200, entry || {});
+        return next();
+      });
     });
   });
 };
