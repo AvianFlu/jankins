@@ -6,6 +6,7 @@
   "main": "jankins.js",
   "dependencies": {
     "bunyan": ">=0.20.0",
+    "googleclientlogin": ">= 0.2.6",
     "http-proxy": ">=0.10.0",
     "redis": ">= 0.8.2",
     "restify": ">= 2.3.4",
