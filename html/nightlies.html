@@ -37,7 +37,7 @@
         l1.push(['li', ['span', {'class':'li-title'}, j], l2]);
         for (k = 0; k < item.length; k++) {
           if (!item[k].name.match(/\.tap$/))
-            l2.push(['a', {'href': item[k].url}, item[k].name]);
+            l2.push(['li', ['a', {'href': item[k].url}, item[k].name]]);
         }
       }
     }
