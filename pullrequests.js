@@ -1,12 +1,17 @@
 'use strict';
 
-var Jenkins = require('./jenkins'),
+var
+  CLA = require('./cla'),
+  Jenkins = require('./jenkins'),
   request = require('request'),
   slide = require('slide'),
   tap = require('tap');
 
 var PullReq = module.exports = function (opts) {
   if (!(this instanceof PullReq)) return new PullReq(opts);
+
+  this.cla = new CLA(opts);
+
   this.server = opts.server;
   this.db = opts.db;
   this.config = opts.config;
@@ -83,6 +88,7 @@ PullReq.prototype.buildPR = function (req, res, next) {
 
   var jenkins = Jenkins({
     hostname: self.config.JENKINS_HOSTNAME,
+    port: self.config.JENKINS_PORT,
     username: req.query.JENKINS_USERNAME,
     password: req.query.JENKINS_API_TOKEN,
   });
