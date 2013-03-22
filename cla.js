@@ -42,6 +42,15 @@ var CLA = module.exports = function (opts) {
       });
     });
   });
+
+  opts.server.get('/cla/either/:fullname/:email', function (req, res, next) {
+    validUser(req, res, next, function () {
+      self.full_or_email(req.params.fullname, req.params.email, function (entry) {
+        res.json(200, entry || {});
+        return next();
+      });
+    });
+  });
 };
 
 CLA.prototype.login = function (cb) {
@@ -62,11 +71,11 @@ CLA.prototype.login = function (cb) {
   googleAuth.login();
 };
 
-CLA.prototype.query = function (key, value, cb) {
+CLA.prototype.query = function (query, cb) {
  var self = this;
 
   if (!this.auth)
-    return this.login(this.query.bind(this, key, value, cb));
+    return this.login(this.query.bind(this, query, cb));
 
   var url = 'https://spreadsheets.google.com/feeds/list/'+ self.config.CLA_KEY +'/od6/private/full/'
 
@@ -75,7 +84,7 @@ CLA.prototype.query = function (key, value, cb) {
     json: true,
     qs: {
       alt: 'json',
-      sq: '"' + key + '" = "'+ value +'"',
+      sq: query,
     },
     headers: {
       Authorization: 'GoogleLogin auth='+ self.auth,
@@ -84,7 +93,7 @@ CLA.prototype.query = function (key, value, cb) {
 
   request.get(reqopts, function (e, r, b) {
     if (r.statusCode === 403) {
-      return self.login(self.query.bind(self, key, value, cb));
+      return self.login(self.query.bind(self, query, cb));
     }
 
     if (b && b.feed && b.feed.entry) cb(b.feed.entry);
@@ -93,9 +102,19 @@ CLA.prototype.query = function (key, value, cb) {
 };
 
 CLA.prototype.email = function (email, cb) {
-  this.query('e-mail', email, cb);
+  // TODO dear god, sqlinject google docs?
+  this.query('"e-mail" = "' + email + '"', cb);
 };
 
 CLA.prototype.fullname = function (name, cb) {
-  this.query('fullname', name, cb);
+  // TODO dear god, sqlinject google docs?
+  this.query('"fullname" = "' +name + '"', cb);
+};
+
+CLA.prototype.full_or_email = function (name, email, cb) {
+  // TODO dear god, sqlinject google docs?
+  var q = '"fullname" = "' + name + '" or ';
+  q += '"e-mail" = "' + email + '"';
+
+  this.query(q, cb);
 };
