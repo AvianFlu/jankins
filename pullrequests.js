@@ -5,7 +5,8 @@ var
   Jenkins = require('./jenkins'),
   request = require('request'),
   slide = require('slide'),
-  tap = require('tap');
+  tap = require('tap'),
+  util = require('util');
 
 var PullReq = module.exports = function (opts) {
   if (!(this instanceof PullReq)) return new PullReq(opts);
@@ -93,7 +94,7 @@ PullReq.prototype.buildPR = function (req, res, next) {
     password: req.query.JENKINS_API_TOKEN,
   });
 
-  jenkins.build(req.params.repo + '-pullrequest', {PR:req.params.id}, function (e, r, b) {
+  jenkins.build(req.params.repo + '-pullrequest', util._extend({PR:req.params.id}, req.query), function (e, r, b) {
     if (e) return next(e);
     if (r.statusCode != 200) return next(new Error('Jenkins status code ' + r.statusCode));
 
