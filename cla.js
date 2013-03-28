@@ -118,3 +118,9 @@ CLA.prototype.full_or_email = function (name, email, cb) {
 
   this.query(q, cb);
 };
+
+CLA.prototype.emails = function (emails, cb) {
+  var q = emails.map(function (e) { return '"e-mail" = "' + e + '"'; }).join(' OR ');
+  console.log(q);
+  this.query(q, cb);
+};

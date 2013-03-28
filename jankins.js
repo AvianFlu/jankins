@@ -4,6 +4,7 @@ var
   Benchmark = require('./benchit'),
   bunyan = require('bunyan'),
   config = require('./config'),
+  Github = require('github'),
   httpProxy = require('http-proxy'),
   Jenkins = require('./jenkins'),
   Nightlies = require('./nightlies'),
@@ -36,14 +37,14 @@ server
 //.use(restify.conditionalRequest())
 ;
 
-/*
+//*
 server.on('after', restify.auditLogger({
   log: bunyan.createLogger({
     name: 'audit',
     stream: process.stdout
   })
 }));
-*/
+//*/
 
 server.listen(config.BIND_PORT, config.BIND_IP);
 
@@ -82,7 +83,6 @@ server.post(/\/github-webhook\/?/, function (req, res, next) {
   });
     
   payload = {payload: JSON.stringify(payload)};
-  console.log(u, payload);
   request.post({url: u, form: payload, followAllRedirects: true}, function () {
     res.send(200);
     return next();
@@ -95,11 +95,18 @@ server.get(/html\/.*/, restify.serveStatic({
 
 var db = redis.createClient();
 
+var github = new Github({ version: '3.0.0', debug: true });
+github.authenticate({
+  type: 'oauth',
+  token: config.GITHUB_AUTH,
+});
+
 var opts = {
   server: server,
   db: db,
   config: config,
   jenkins: jenkins,
+  github: github,
 };
 
 var PR = PullReq(opts);

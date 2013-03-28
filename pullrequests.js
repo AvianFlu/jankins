@@ -17,6 +17,7 @@ var PullReq = module.exports = function (opts) {
   this.db = opts.db;
   this.config = opts.config;
   this.jenkins = opts.jenkins;
+  this.gh = opts.github;
 
   this.interest;
 
@@ -58,9 +59,114 @@ PullReq.prototype.checkState = function () {
 };
 
 PullReq.prototype.github = function (payload) {
+  var self = this;
 
-  //TODO
-  //console.log(payload);
+  if (payload.pull_request && payload.action === 'opened') {
+    console.log('pull req ' + payload.pull_request.base.repo.full_name + ' #' + payload.number + ' ' + payload.action);
+    var url = payload.pull_request.head.repo.compare_url
+      .replace(/{base}/, payload.pull_request.base.sha)
+      .replace(/{head}/, payload.pull_request.head.sha)
+
+    request.get({url: url, json: true}, function (e, r, b) {
+      var
+        invalidCommits = [],
+        needsTest = false,
+        hasTest = false,
+        emails = {};
+
+      b.files.forEach(function (f) {
+        if (f.filename.match(/^(lib|src)\//)) needsTest = true;
+        if (f.filename.match(/^(test|benchmark)\//)) hasTest = true;
+      });
+
+      b.commits.forEach(function (commit) {
+        var errors = [];
+
+        var messageLines = commit.commit.message.split(/\n/);
+        var first = messageLines[0];
+
+        if (first.length > 50)
+          errors.push('First line of commit message must be no longer than 50 characters');
+
+        if (first.indexOf(':') === -1)
+          errors.push('Commit message must indicate the subsystem this commit changes');
+
+        if (messageLines.length > 1 && messageLines[1].length > 0)
+          errors.push('Second line of commit must always be empty');
+
+        messageLines.forEach(function (line, idx) {
+          if (line.length > 72)
+            errors.push('Commit message line too long: ' + idx);
+        });
+
+        emails[commit.commit.author.email] = commit.commit.author.name;
+
+        if (errors.length) {
+          commit.errors = errors;
+          invalidCommits.push(commit);
+        }
+      });
+
+      self.cla.emails(Object.keys(emails), function (b) {
+        var found = {};
+        b.forEach(function (c) {
+          found[c['gsx$e-mail']['$t']] = true;
+        });
+
+        var clas = [];
+
+        Object.keys(emails).forEach(function (e) {
+          if (!found[e]) clas.push(emails[e]);
+        });
+
+        var mdwn = [];
+
+        if (needsTest && !hasTest) {
+          mdwn.push('');
+          mdwn.push('Your commits have changes to lib or src but have no corresponding test or benchmark to go with them.');
+        }
+
+        invalidCommits.forEach(function (commit) {
+          var repo = payload.pull_request.head.repo.full_name;
+          var sha = commit.sha;
+          mdwn.push('');
+          mdwn.push('Commit '+ repo + '@' + sha +' has the following error(s):');
+          mdwn.push('');
+          commit.errors.forEach(function (error) {
+            mdwn.push(' * ' + error);
+          });
+        });
+
+        if (clas.length) {
+          mdwn.push('');
+          mdwn.push('The following commiters were not found in the CLA:');
+          mdwn.push('');
+          clas.forEach(function (email) {
+            mdwn.push(' * ' + email);
+          });
+        }
+
+        if (mdwn.length) {
+          mdwn = ['Thank you for contributing this pull request!'
+            + ' Here are a few pointers to make sure your submission'
+            + ' will be considered for inclusion.'].concat(mdwn);
+
+          mdwn.push('');
+          mdwn.push('Please see [CONTRIBUTING.md](https://github.com/joyent/node/blob/master/CONTRIBUTING.md) for more information');
+
+          var r = {
+            number: payload.number,
+            repo: payload.pull_request.base.repo.name,
+            user: payload.pull_request.base.user.login,
+            body: mdwn.join('\n'),
+          };
+
+          self.gh.issues.createComment(r, function (err, res) {
+          });
+        }
+      });
+    });
+  }
 };
 
 PullReq.prototype.getPR = function (req, res, next) {

@@ -8,4 +8,9 @@ module.exports = {
   CHECK_INTERVAL: 15 * 1000,
   BIND_PORT: 80,
   BIND_IP: '0.0.0.0',
+  GOOGLE_USERNAME: '',
+  GOOGLE_PASSWORD: '',
+  CLA_KEY: '',
+  GITHUB_AUTH: '',
+  WHITELIST: {},
 };
