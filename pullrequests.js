@@ -200,7 +200,12 @@ PullReq.prototype.buildPR = function (req, res, next) {
     password: req.query.JENKINS_API_TOKEN,
   });
 
-  jenkins.build(req.params.repo + '-pullrequest', util._extend({PR:req.params.id}, req.query), function (e, r, b) {
+  var opts = util._extend({
+    PR: req.params.id,
+    PR_PATH: req.path(),
+  }, req.query);
+
+  jenkins.build(req.params.repo + '-pullrequest', opts, function (e, r, b) {
     if (e) return next(e);
     if (r.statusCode != 200) return next(new Error('Jenkins status code ' + r.statusCode));
 
@@ -244,8 +249,7 @@ PullReq.prototype.finished = function (jurl) {
     depth: 2,
   }
 
-  var interested = self.interest[jurl];
-  if (!interested) return;
+  console.log('finished', jurl);
 
   request.get({url: jurl + '/api/json', qs: qs, json: true}, function (e, r, build) {
     if (!build || e) {
@@ -253,6 +257,20 @@ PullReq.prototype.finished = function (jurl) {
       console.log(r);
       return;
     }
+
+    var params = {};
+
+    build.actions.forEach(function (action) {
+      if (!action.parameters) return;
+      action.parameters.forEach(function (parameter) {
+        params[parameter.name] = parameter.value;
+      });
+    });
+
+    console.log(params);
+    if (!params.PR_PATH) return;
+
+    var interested = params.PR_PATH;
 
     self.db.get(interested, function (err, pr) {
       if (!pr) {
