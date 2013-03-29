@@ -13,7 +13,8 @@ var
   redis = require('redis'),
   restify = require('restify'),
   request = require('request'),
-  url = require('url');
+  url = require('url'),
+  util = require('util');
 
 var jenkins = Jenkins({
   hostname: config.JENKINS_HOSTNAME,
@@ -23,6 +24,24 @@ var jenkins = Jenkins({
   udp: config.UDP,
   interval: config.CHECK_INTERVAL,
 });
+
+config = util._extend({
+  JENKINS_USER: undefined,
+  JENKINS_API_TOKEN: undefined,
+  JENKINS_HOSTNAME: undefined,
+  JENKINS_PORT: undefined,
+  REPO_PATH: undefined,
+  UDP: undefined,
+  CHECK_INTERVAL: undefined,
+  BIND_PORT: undefined,
+  BIND_IP: undefined,
+  GOOGLE_USERNAME: undefined,
+  GOOGLE_PASSWORD: undefined,
+  CLA_KEY: undefined,
+  GITHUB_AUTH: undefined,
+  WHITELIST: {},
+  DB_PREFIX: '',
+}, config);
 
 var server = restify.createServer();
 
@@ -37,7 +56,7 @@ server
 //.use(restify.conditionalRequest())
 ;
 
-//*
+/*
 server.on('after', restify.auditLogger({
   log: bunyan.createLogger({
     name: 'audit',
@@ -94,6 +113,16 @@ server.get(/html\/.*/, restify.serveStatic({
 }));
 
 var db = redis.createClient();
+
+var _set = db.set;
+db.set = function (key, obj, cb) {
+  return _set.call(this, config.DB_PREFIX+key, obj, cb);
+};
+
+var _get = db.get;
+db.get = function (key, cb) {
+  return _get.call(this, config.DB_PREFIX+key, cb);
+};
 
 var github = new Github({ version: '3.0.0', debug: true });
 github.authenticate({
