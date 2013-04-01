@@ -70,33 +70,25 @@ PullReq.prototype.github = function (payload) {
     request.get({url: url, json: true}, function (e, r, b) {
       var
         invalidCommits = [],
-        needsTest = false,
-        hasTest = false,
         emails = {};
-
-      b.files.forEach(function (f) {
-        if (f.filename.match(/^(lib|src)\//)) needsTest = true;
-        if (f.filename.match(/^(test|benchmark)\//)) hasTest = true;
-      });
 
       b.commits.forEach(function (commit) {
         var errors = [];
 
         var messageLines = commit.commit.message.split(/\n/);
-        var first = messageLines[0];
-
-        if (first.length > 50)
-          errors.push('First line of commit message must be no longer than 50 characters');
-
-        if (first.indexOf(':') === -1)
-          errors.push('Commit message must indicate the subsystem this commit changes');
-
-        if (messageLines.length > 1 && messageLines[1].length > 0)
-          errors.push('Second line of commit must always be empty');
 
         messageLines.forEach(function (line, idx) {
-          if (line.length > 72)
+          if (idx === 0) {
+            if (line.length > 50)
+              errors.push('First line of commit message must be no longer than 50 characters');
+
+            if (line.indexOf(':') < 1)
+              errors.push('Commit message must indicate the subsystem this commit changes');
+          } else if (idx === 1 && line.length > 0) {
+            errors.push('Second line of commit must always be empty');
+          } else if (idx > 1 && line.length > 72) {
             errors.push('Commit message line too long: ' + idx);
+          }
         });
 
         emails[commit.commit.author.email] = commit.commit.author.name;
@@ -120,11 +112,6 @@ PullReq.prototype.github = function (payload) {
         });
 
         var mdwn = [];
-
-        if (needsTest && !hasTest) {
-          mdwn.push('');
-          mdwn.push('Your commits have changes to lib or src but have no corresponding test or benchmark to go with them.');
-        }
 
         invalidCommits.forEach(function (commit) {
           var repo = payload.pull_request.head.repo.full_name;
