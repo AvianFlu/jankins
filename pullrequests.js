@@ -70,6 +70,7 @@ PullReq.prototype.github = function (payload) {
 
     console.log('pull req ' + prpath + ' ' + payload.action);
 
+    // TODO this should come from db
     if (self.config.WHITELIST[payload.sender.login]) {
       console.log('initiating build for', prpath, payload.sender.login);
       var opts = {
@@ -77,11 +78,9 @@ PullReq.prototype.github = function (payload) {
         PR_PATH: prpath,
         REBASE_BRANCH: base.ref,
       };
-      self.jenkins.build(base.repo.name + '-pullrequest', opts,
-        self.buildStarted.bind(self, prpath, 'Nodejs-Jenkins', function (err, pr){
-          console.log('scheduled ' + prpath);
-        })
-      );
+      self.triggerBuild(self.jenkins, base.repo.name, prpath, 'Nodejs-Jenkins', opts, function (err, pr) {
+        console.log('scheduled ' + prpath);
+      });
     }
 
     var url = head.repo.compare_url
@@ -261,7 +260,25 @@ PullReq.prototype.buildPR = function (req, res, next) {
 
   var user = req.query.JENKINS_USERNAME;
 
-  jenkins.build(req.params.repo + '-pullrequest', opts, self.buildStarted.bind(self, req.path(), user, started));
+  function go() {
+    self.triggerBuild(jenkins, req.params.repo, req.path(), user, opts, started);
+  }
+
+  if (!opts.REBASE_BRANCH) {
+    request.get({
+      url: 'https://api.github.com/repos' + req.path().replace('pull', 'pulls'),
+      json: true,
+    }, function (e, r, b) {
+      if (b && b.base) opts.REBASE_BRANCH = b.base.ref;
+      go();
+    });
+  } else {
+    go();
+  }
+};
+
+PullReq.prototype.triggerBuild = function (jenkins, repo, path, user, opts, next) {
+  jenkins.build(repo + '-pullrequest', opts, this.buildStarted.bind(this, path, user, next));
 };
 
 PullReq.prototype.finished = function (jurl) {
