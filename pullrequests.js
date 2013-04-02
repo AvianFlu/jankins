@@ -59,17 +59,31 @@ PullReq.prototype.checkState = function () {
 };
 
 PullReq.prototype.github = function (payload) {
-  var self = this, prpath;
+  var self = this, prpath, base, head;
 
   if (payload.pull_request && payload.action === 'opened') {
-    prpath = '/' + payload.pull_request.base.repo.full_name;
+    base = payload.pull_request.base;
+    head = payload.pull_request.head;
+
+    prpath = '/' + base.repo.full_name;
     prpath += '/pull/' + payload.number;
 
     console.log('pull req ' + prpath + ' ' + payload.action);
 
-    var url = payload.pull_request.head.repo.compare_url
-      .replace(/{base}/, payload.pull_request.base.sha)
-      .replace(/{head}/, payload.pull_request.head.sha)
+    if (self.config.WHITELIST[payload.sender.login]) {
+      console.log('initiating build for', prpath, payload.sender.login);
+      var opts = {
+        PR: payload.number,
+        PR_PATH: prpath,
+        REBASE_BRANCH: base.ref,
+      };
+      self.jenkins.build(base.repo.name + '-pullrequest', opts, function (e, r, b) {
+      });
+    }
+
+    var url = head.repo.compare_url
+      .replace(/{base}/, base.sha)
+      .replace(/{head}/, head.sha);
 
     request.get({url: url, json: true}, function (e, r, b) {
       var
