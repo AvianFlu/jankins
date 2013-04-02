@@ -77,8 +77,11 @@ PullReq.prototype.github = function (payload) {
         PR_PATH: prpath,
         REBASE_BRANCH: base.ref,
       };
-      self.jenkins.build(base.repo.name + '-pullrequest', opts, function (e, r, b) {
-      });
+      self.jenkins.build(base.repo.name + '-pullrequest', opts,
+        self.buildStarted.bind(self, prpath, 'Nodejs-Jenkins', function (err, pr){
+          console.log('scheduled ' + prpath);
+        })
+      );
     }
 
     var url = head.repo.compare_url
@@ -194,6 +197,43 @@ PullReq.prototype.getPR = function (req, res, next) {
   });
 };
 
+PullReq.prototype.buildStarted = function (prpath, user, next, e, r, b) {
+  var self = this;
+
+  if (e) return next(e);
+  if (r.statusCode != 200) return next(new Error('Jenkins status code ' + r.statusCode));
+
+  self.db.get(prpath, function (err, pr) {
+    if (err) return next(err);
+
+    if (pr) pr = JSON.parse(pr);
+    else pr = {};
+
+    pr.status = 'BUILDING';
+    pr.started = Date.now();
+    pr.by = user;
+
+    var jurl = b.url + b.nextBuildNumber + '/';
+
+    pr.lastBuild = b.nextBuildNumber;
+    pr.url = jurl;
+
+    self.interest[jurl] = prpath;
+
+    self.db.set('pullrequest-interest', JSON.stringify(self.interest), function (err, rres) {
+      // TODO cancel interest?
+      if (err) return next(err);
+
+      self.db.set(prpath, JSON.stringify(pr), function (err, rres) {
+        // TODO cancel interest?
+        if (err) return next(err);
+
+        return next(null, pr);
+      });
+    });
+  });
+};
+
 PullReq.prototype.buildPR = function (req, res, next) {
   var self = this;
 
@@ -212,41 +252,16 @@ PullReq.prototype.buildPR = function (req, res, next) {
     PR_PATH: req.path(),
   }, req.query);
 
-  jenkins.build(req.params.repo + '-pullrequest', opts, function (e, r, b) {
-    if (e) return next(e);
-    if (r.statusCode != 200) return next(new Error('Jenkins status code ' + r.statusCode));
+  function started(err, pr) {
+    if (err)
+      return next(err);
 
-    self.db.get(req.path(), function (err, pr) {
-      if (err) return next(err);
+    res.send(200, pr);
+  }
 
-      if (pr) pr = JSON.parse(pr);
-      else pr = {};
+  var user = req.query.JENKINS_USERNAME;
 
-      pr.status = 'BUILDING';
-      pr.started = Date.now();
-      pr.by = req.query.JENKINS_USERNAME;
-
-      var jurl = b.url + b.nextBuildNumber + '/';
-
-      pr.lastBuild = b.nextBuildNumber;
-      pr.url = jurl;
-
-      self.interest[jurl] = req.path();
-
-      self.db.set('pullrequest-interest', JSON.stringify(self.interest), function (err, rres) {
-        // TODO cancel interest?
-        if (err) return next(err);
-
-        self.db.set(req.path(), JSON.stringify(pr), function (err, rres) {
-          // TODO cancel interest?
-          if (err) return next(err);
-
-          res.json(200, pr);
-          return next();
-        });
-      });
-    });
-  });
+  jenkins.build(req.params.repo + '-pullrequest', opts, self.buildStarted.bind(self, req.path(), user, started));
 };
 
 PullReq.prototype.finished = function (jurl) {
