@@ -59,10 +59,14 @@ PullReq.prototype.checkState = function () {
 };
 
 PullReq.prototype.github = function (payload) {
-  var self = this;
+  var self = this, prpath;
 
   if (payload.pull_request && payload.action === 'opened') {
-    console.log('pull req ' + payload.pull_request.base.repo.full_name + ' #' + payload.number + ' ' + payload.action);
+    prpath = '/' + payload.pull_request.base.repo.full_name;
+    prpath += '/pull/' + payload.number;
+
+    console.log('pull req ' + prpath + ' ' + payload.action);
+
     var url = payload.pull_request.head.repo.compare_url
       .replace(/{base}/, payload.pull_request.base.sha)
       .replace(/{head}/, payload.pull_request.head.sha)
@@ -100,6 +104,8 @@ PullReq.prototype.github = function (payload) {
       });
 
       self.cla.emails(Object.keys(emails), function (b) {
+        b = b || [];
+
         var found = {};
         b.forEach(function (c) {
           found[c['gsx$e-mail']['$t']] = true;

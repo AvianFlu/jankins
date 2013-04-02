@@ -90,7 +90,11 @@ server.post(/\/github-webhook\/?/, function (req, res, next) {
     payload = req.params;
   }
 
-  if (payload) server.emit('github', payload);
+  if (payload) {
+    process.nextTick(function () {
+      server.emit('github', payload);
+    });
+  }
 
   // this isn't as robust as we want because of redirects?
   //proxy.proxyRequest(req, res);
