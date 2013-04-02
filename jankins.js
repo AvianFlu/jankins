@@ -105,8 +105,8 @@ server.post(/\/github-webhook\/?/, function (req, res, next) {
     port: config.JENKINS_PORT,
   });
     
-  payload = {payload: JSON.stringify(payload)};
-  request.post({url: u, form: payload, followAllRedirects: true}, function () {
+  var p = {payload: JSON.stringify(payload)};
+  request.post({url: u, form: p, followAllRedirects: true}, function () {
     res.send(200);
     return next();
   });
