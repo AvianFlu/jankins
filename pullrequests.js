@@ -196,11 +196,38 @@ PullReq.prototype.getPR = function (req, res, next) {
   });
 };
 
+PullReq.prototype.setStatus = function (prpath, state, desc, target_url) {
+  var self = this;
+  var url = 'https://api.github.com/repos' + prpath.replace('pull', 'pulls') + '/commits';
+  request.get({url: url, json: true}, function (e, r, b) {
+    if (!b) return;
+
+    var parts = prpath.split('/');
+
+    var user = parts[1];
+    var repo = parts[2];
+
+    b.forEach(function (commit) {
+      var obj = {
+        user: user,
+        repo: repo,
+        sha: commit.sha,
+        state: state,
+        description: desc,
+        target_url: target_url,
+      };
+      self.gh.statuses.create(obj);
+    });
+  });
+};
+
 PullReq.prototype.buildStarted = function (prpath, user, next, e, r, b) {
   var self = this;
 
   if (e) return next(e);
   if (r.statusCode != 200) return next(new Error('Jenkins status code ' + r.statusCode));
+
+  self.setStatus(prpath, 'pending');
 
   self.db.get(prpath, function (err, pr) {
     if (err) return next(err);
@@ -368,6 +395,34 @@ PullReq.prototype.finished = function (jurl) {
         pr.status = build.result;
         pr.url = jurl;
         pr.result = results;
+
+        var state;
+
+        switch (build.result) {
+          case 'SUCCESS':
+            state = 'success';
+            break;
+          case 'UNSTABLE':
+            state = 'error';
+            break;
+          default:
+            state = 'failure';
+            break;
+        };
+
+        var msg = [];
+
+        Object.keys(results).forEach(function (k) {
+          if (results[k].length)
+            msg.push(k + ': ' + results[k].length);
+        });
+
+        if (msg.length)
+          msg = 'Failing tests -- ' + msg.join(', ');
+        else
+          msg = undefined;
+
+        self.setStatus(interested, state, msg, jurl);
 
         self.db.set(interested, JSON.stringify(pr), function (err, res) {
           // TODO trigger any websockets?
