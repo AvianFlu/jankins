@@ -49,8 +49,8 @@ PullReq.prototype.checkState = function () {
     uo.host = null;
     uo.port = self.config.JENKINS_PORT.toString();
     uo.pathname = uo.pathname.replace(/\/\//g, '/');
-    url = u.format(uo);
-    request.get({url: url, qs: qs, json: true}, function (e, r, b) {
+    uo = u.format(uo);
+    request.get({url: uo, qs: qs, json: true}, function (e, r, b) {
       if (e) {
         console.log(e);
         return cb();
@@ -355,6 +355,8 @@ PullReq.prototype.finished = function (jurl) {
 
       if (pr.lastBuild > build.number) {
         console.log('historical build, dropped', jurl, build.number);
+        delete self.interest[jurl];
+        self.db.set('pullrequest-interest', JSON.stringify(self.interest));
         return;
       } else {
         console.log('finished', jurl, pr);
