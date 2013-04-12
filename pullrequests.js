@@ -6,6 +6,7 @@ var
   request = require('request'),
   slide = require('slide'),
   tap = require('tap'),
+  u = require('url'),
   util = require('util');
 
 var PullReq = module.exports = function (opts) {
@@ -44,7 +45,12 @@ PullReq.prototype.checkState = function () {
     depth: 0,
   };
   slide.asyncMap(urls, function (url, cb) {
-    request.get({url: url + '/api/json', qs: qs, json: true}, function (e, r, b) {
+    var uo = u.parse(url + '/api/json');
+    uo.host = null;
+    uo.port = self.config.JENKINS_PORT.toString();
+    uo.pathname = uo.pathname.replace(/\/\//g, '/');
+    url = u.format(uo);
+    request.get({url: url, qs: qs, json: true}, function (e, r, b) {
       if (e) {
         console.log(e);
         return cb();
@@ -60,6 +66,8 @@ PullReq.prototype.checkState = function () {
 
 PullReq.prototype.github = function (payload) {
   var self = this, prpath, base, head;
+
+  console.log(payload);
 
   if (payload.pull_request && payload.action === 'opened') {
     base = payload.pull_request.base;
