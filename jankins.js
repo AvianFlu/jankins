@@ -75,10 +75,14 @@ var proxy = new httpProxy.HttpProxy({
 });
 
 server.on('NotFound', function (req, res, next) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Expose-Headers', 'Link, X-RateLimit-Limit, X-RateLimit-Remaining, X-OAuth-Scopes, X-Accepted-OAuth-Scopes');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, If-Match, If-Modified-Since, If-None-Match, If-Unmodified-Since, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE');
   if (req.method === 'OPTIONS') {
     console.log('CORS');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.send(200);
+    res.send(204);
     return next();
   }
   console.log('proxy', req.path());
