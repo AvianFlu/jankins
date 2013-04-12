@@ -77,7 +77,7 @@ var proxy = new httpProxy.HttpProxy({
 server.on('NotFound', function (req, res, next) {
   if (req.method === 'OPTIONS') {
     console.log('CORS');
-    res.setHeader('access-control-allow-origin', '*');
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.send(200);
     return next();
   }
