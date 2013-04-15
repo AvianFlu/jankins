@@ -72,12 +72,17 @@ PullReq.prototype.github = function (payload) {
   if (payload.pull_request && payload.action === 'synchronize') {
     self.db.get(prpath, function (err, pr) {
       if (err || !pr) return;
+
       base = payload.pull_request.base;
+      prpath = '/' + base.repo.full_name;
+      prpath += '/pull/' + payload.number;
+
       var opts = {
         PR: payload.number,
         PR_PATH: prpath,
         REBASE_BRANCH: base.ref,
       };
+
       self.triggerBuild(self.jenkins, base.repo.name, prpath, 'Nodejs-Jenkins', opts, function (err, pr) {
         console.log('scheduled ' + prpath);
       });
