@@ -70,7 +70,7 @@ payloads.write('[\n');
 PullReq.prototype.github = function (payload) {
   var self = this, prpath, base, head;
 
-  payloads.write(payload + ',\n');
+  payloads.write(JSON.stringify(payload) + ',\n');
 
   if (payload.pull_request && payload.action === 'synchronize') {
     base = payload.pull_request.base;
