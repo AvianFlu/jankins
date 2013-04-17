@@ -64,18 +64,23 @@ PullReq.prototype.checkState = function () {
   }, function () {});
 };
 
+var payloads = require('fs').createWriteStream('payloads')
+payloads.write('[\n');
+
 PullReq.prototype.github = function (payload) {
   var self = this, prpath, base, head;
 
-  console.log(payload);
+  payloads.write(payload + ',\n');
 
   if (payload.pull_request && payload.action === 'synchronize') {
+    base = payload.pull_request.base;
+    prpath = '/' + base.repo.full_name;
+    prpath += '/pull/' + payload.number;
+
+    console.log('got resync for', prpath);
+
     self.db.get(prpath, function (err, pr) {
       if (err || !pr) return;
-
-      base = payload.pull_request.base;
-      prpath = '/' + base.repo.full_name;
-      prpath += '/pull/' + payload.number;
 
       var opts = {
         PR: payload.number,
