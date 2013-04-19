@@ -21,7 +21,49 @@ function testReport() {
   });
 };
 
+function prChanges(match) {
+  var notepad = jQuery('img').filter(function () { return jQuery(this).attr('src').match(/48x48\/notepad.png$/); });
+
+  if (!notepad.length) return;
+
+  var changes = notepad.parent().next();
+
+  changes.html('Changes <ol></ol>');
+
+  var ol = jQuery('ol');
+
+  jQuery.getJSON(window.location.pathname + 'api/json', function (build) {
+    var prpath;
+
+    build.actions.forEach(function (action) {
+      if (!action.parameters) return;
+      action.parameters.forEach(function (parameter) {
+        if (parameter.name === 'PR_PATH')
+          prpath = parameter.value;
+      });
+    });
+
+    if (!prpath) return;
+
+    prpath = '/ghapi' + prpath.replace('pull', 'pulls') + '/commits';
+
+    jQuery.getJSON(prpath, function (commits) {
+      //console.log(prpath, commits);
+      commits.forEach(function (commit) {
+        var msg = commit.commit.message.split(/\n/)[0];
+        msg += ' (<a href="' + commit.html_url + '">commit: ' + commit.sha + '</a>)';
+        ol.append('<li>' + msg + '</li>');
+      });
+    });
+  });
+}
+
 jQuery(function () {
   if (window.location.pathname.match(/testReport\/$/))
     testReport();
+
+  var match = window.location.pathname.match(/pullrequest\/(\d+|(lastCompletedBuild))\//);
+
+  if (match)
+    prChanges(match);
 });

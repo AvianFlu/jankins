@@ -5,6 +5,7 @@ var
   bunyan = require('bunyan'),
   config = require('./config'),
   Github = require('github'),
+  GHApi = require('./ghapi'),
   httpProxy = require('http-proxy'),
   Jenkins = require('./jenkins'),
   Nightlies = require('./nightlies'),
@@ -81,11 +82,11 @@ server.on('NotFound', function (req, res, next) {
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, If-Match, If-Modified-Since, If-None-Match, If-Unmodified-Since, X-Requested-With');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE');
   if (req.method === 'OPTIONS') {
-    console.log('CORS');
+    //console.log('CORS');
     res.send(204);
     return next();
   }
-  console.log('proxy', req.path());
+  //console.log('proxy', req.path());
   proxy.proxyRequest(req, res);
 });
 
@@ -156,3 +157,4 @@ var opts = {
 var PR = PullReq(opts);
 //var BM = Benchmark(opts);
 var NL = Nightlies(opts);
+var GHAPI = GHApi(opts);
