@@ -146,12 +146,19 @@ github.authenticate({
   token: config.GITHUB_AUTH,
 });
 
+var ghrest = restify.createJsonClient({
+  url: 'https://api.github.com',
+  version: '*',
+  userAgent: 'github-youre-absurd/9001.0 (Useless)',
+});
+
 var opts = {
   server: server,
   db: db,
   config: config,
   jenkins: jenkins,
   github: github,
+  ghrest: ghrest,
 };
 
 var PR = PullReq(opts);

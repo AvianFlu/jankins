@@ -19,6 +19,7 @@ var PullReq = module.exports = function (opts) {
   this.config = opts.config;
   this.jenkins = opts.jenkins;
   this.gh = opts.github;
+  this.ghrest = opts.ghrest;
 
   this.interest;
 
@@ -116,6 +117,7 @@ PullReq.prototype.github = function (payload) {
       });
     }
 
+    // TODO there's probably a saner way to do this, like prpath/commits
     var url = head.repo.compare_url
       .replace(/{base}/, base.sha)
       .replace(/{head}/, head.sha);
@@ -231,9 +233,9 @@ PullReq.prototype.getPR = function (req, res, next) {
 
 PullReq.prototype.setStatus = function (prpath, state, desc, target_url) {
   var self = this;
-  var url = 'https://api.github.com/repos' + prpath.replace('pull', 'pulls') + '/commits';
-  request.get({url: url, json: true}, function (e, r, b) {
-    if (!b) return;
+  var url = '/repos' + prpath.replace('pull', 'pulls') + '/commits';
+  this.ghrest.get(url, function (e, jreq, r, b) {
+    if (!b.length) return;
 
     var parts = prpath.split('/');
 
@@ -325,10 +327,7 @@ PullReq.prototype.buildPR = function (req, res, next) {
   }
 
   if (!opts.REBASE_BRANCH) {
-    request.get({
-      url: 'https://api.github.com/repos' + req.path().replace('pull', 'pulls'),
-      json: true,
-    }, function (e, r, b) {
+    this.ghrest.get('/repos' + req.path().replace('pull', 'pulls'), function (e, jreq, r, b) {
       if (b && b.base) opts.REBASE_BRANCH = b.base.ref;
       go();
     });
@@ -350,6 +349,7 @@ PullReq.prototype.finished = function (jurl) {
 
   console.log('finished', jurl);
 
+  // TODO XXX FIXME jenkins restify client
   request.get({url: jurl + '/api/json', qs: qs, json: true}, function (e, r, build) {
     if (!build || e) {
       console.log(e);

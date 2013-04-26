@@ -1,5 +1,3 @@
-var request = require('request');
-
 var GHApi = module.exports = function (options) {
   if (!(this instanceof GHApi)) return new GHApi(options);
   this.options = options;
@@ -8,10 +6,10 @@ var GHApi = module.exports = function (options) {
 };
 
 GHApi.prototype.proxy = function (req, res, next) {
-  var path = 'https://api.github.com/repos' + req.path().replace(/^\/ghapi/, '');
+  var url = '/repos' + req.path().replace(/^\/ghapi/, '');
 
-  request.get({ url: path, json: true}, function (e, r, b) {
-    res.json(r.statusCode, b);
+  this.options.ghrest.get(url, function (e, jreq, jres, b) {
+    res.json(jres.statusCode, b);
     return next();
   });
 };
