@@ -93,7 +93,7 @@ Jenkins.prototype._api = function (command, parameters, cb) {
   this.log.info({url: url});
 
   this.client.get(url, function (e, req, res, body) {
-    self.log.info({url: url, body: body});
+    self.log.debug({url: url, body: body});
     if (cb) cb(e, res, body);
   });
 };
@@ -200,7 +200,7 @@ Jenkins.prototype.artifacts = function (job, files, id, cb) {
 };
 
 Jenkins.prototype.validUser = function (cb) {
-  this._api('me', {}, true, function (e, r, b) {
+  this._api('me', {}, function (e, r, b) {
     cb(r.statusCode === 200);
   });
 };
