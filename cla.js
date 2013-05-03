@@ -6,6 +6,8 @@ var CLA = module.exports = function (opts) {
   if (!(this instanceof CLA)) return new CLA(opts);
   this.config = opts.config;
 
+  this.log = opts.log.child({plugin: 'cla'});
+
   var self = this;
 
   function validUser (req, res, next, cb) {
@@ -91,6 +93,9 @@ CLA.prototype.query = function (query, cb) {
     },
   }
 
+  self.log.info(reqopts);
+
+  // TODO XXX FIXME restify
   request.get(reqopts, function (e, r, b) {
     if (r.statusCode === 403) {
       return self.login(self.query.bind(self, query, cb));
@@ -121,6 +126,5 @@ CLA.prototype.full_or_email = function (name, email, cb) {
 
 CLA.prototype.emails = function (emails, cb) {
   var q = emails.map(function (e) { return '"e-mail" = "' + e + '"'; }).join(' OR ');
-  console.log(q);
   this.query(q, cb);
 };
