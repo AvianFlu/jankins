@@ -17,6 +17,11 @@ var
   url = require('url'),
   util = require('util');
 
+var log = bunyan.createLogger({
+  name: 'jankins',
+  streams: config.LOGS,
+});
+
 var jenkins = Jenkins({
   hostname: config.JENKINS_HOSTNAME,
   username: config.JENKINS_USER,
@@ -24,6 +29,7 @@ var jenkins = Jenkins({
   port: config.JENKINS_PORT,
   udp: config.UDP,
   interval: config.CHECK_INTERVAL,
+  log: log,
 });
 
 config = util._extend({
@@ -42,6 +48,9 @@ config = util._extend({
   GITHUB_AUTH: undefined,
   WHITELIST: {},
   DB_PREFIX: '',
+  LOGS: [{
+    stream: process.stderr,
+  }],
 }, config);
 
 var server = restify.createServer();
@@ -57,14 +66,9 @@ server
 //.use(restify.conditionalRequest())
 ;
 
-/*
 server.on('after', restify.auditLogger({
-  log: bunyan.createLogger({
-    name: 'audit',
-    stream: process.stdout
-  })
+  log: log,
 }));
-//*/
 
 server.listen(config.BIND_PORT, config.BIND_IP);
 
@@ -82,11 +86,11 @@ server.on('NotFound', function (req, res, next) {
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, If-Match, If-Modified-Since, If-None-Match, If-Unmodified-Since, X-Requested-With');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE');
   if (req.method === 'OPTIONS') {
-    //console.log('CORS');
+    log.info({CORS: true, req: req, res: res});
     res.send(204);
     return next();
   }
-  //console.log('proxy', req.path());
+  log.info({proxy: true, url: req.path()});
   proxy.proxyRequest(req, res);
 });
 
@@ -104,6 +108,7 @@ server.post(/\/github-webhook\/?/, function (req, res, next) {
 
   if (payload) {
     process.nextTick(function () {
+      log.info({github: payload, req: req, res: res});
       server.emit('github', payload);
     });
   }
@@ -118,6 +123,7 @@ server.post(/\/github-webhook\/?/, function (req, res, next) {
   });
     
   var p = {payload: JSON.stringify(payload)};
+  // TODO XXX restify
   request.post({url: u, form: p, followAllRedirects: true}, function () {
     res.send(200);
     return next();
@@ -132,12 +138,16 @@ var db = redis.createClient();
 
 var _set = db.set;
 db.set = function (key, obj, cb) {
-  return _set.call(this, config.DB_PREFIX+key, obj, cb);
+  key = config.DB_PREFIX+key;
+  log.info({db: 'set', key: key, value: obj});
+  return _set.call(this, key, obj, cb);
 };
 
 var _get = db.get;
 db.get = function (key, cb) {
-  return _get.call(this, config.DB_PREFIX+key, cb);
+  key = config.DB_PREFIX+key;
+  log.info({db: 'get', key: key});
+  return _get.call(this, key, cb);
 };
 
 var github = new Github({ version: '3.0.0', debug: true });
@@ -159,6 +169,7 @@ var opts = {
   jenkins: jenkins,
   github: github,
   ghrest: ghrest,
+  log: log,
 };
 
 var PR = PullReq(opts);

@@ -13,4 +13,10 @@ module.exports = {
   CLA_KEY: '',
   GITHUB_AUTH: '',
   WHITELIST: {},
+  LOGS: [{
+    type: 'rotating-file',
+    path: 'jankins.log',
+    period: '1d',
+    count: 5,
+  }],
 };
