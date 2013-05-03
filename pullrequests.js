@@ -346,8 +346,7 @@ PullReq.prototype.finished = function (jurl) {
 
   self.log.info('finished', jurl);
 
-  // TODO XXX FIXME jenkins restify client
-  request.get({url: jurl + '/api/json', qs: qs, json: true}, function (e, r, build) {
+  self.jenkins._api(u.parse(jurl).pathname, qs, function (e, r, build) {
     if (!build || e) {
       self.log.info({err: e, url: jurl, res: r});
       return;
@@ -381,7 +380,7 @@ PullReq.prototype.finished = function (jurl) {
         self.db.set('pullrequest-interest', JSON.stringify(self.interest));
         return;
       } else {
-        self.log.info({action: 'finished', url: url, params: params, pr: pr});
+        self.log.info({action: 'finished', url: jurl, params: params, pr: pr});
       }
 
       var urls = [];
@@ -395,6 +394,7 @@ PullReq.prototype.finished = function (jurl) {
         });
       });
 
+      self.log.info({params: params, urls: urls}, 'get artifacts');
       var results = {};
       slide.asyncMap(urls, function (url, cb) {
         var platform, arch, key, testresults;
