@@ -93,6 +93,7 @@ Jenkins.prototype._api = function (command, parameters, cb) {
   this.log.info({url: url});
 
   this.client.get(url, function (e, req, res, body) {
+    if (e) self.log.error({url: url, err: e});
     self.log.debug({url: url, body: body});
     if (cb) cb(e, res, body);
   });
