@@ -12,6 +12,8 @@ var
 var PullReq = module.exports = function (opts) {
   if (!(this instanceof PullReq)) return new PullReq(opts);
 
+  this.log = opts.log.child({plugin: 'pullrequests'});
+
   this.cla = new CLA(opts);
 
   this.server = opts.server;
@@ -37,6 +39,8 @@ var PullReq = module.exports = function (opts) {
   this.jenkins.on('message', this.message.bind(this));
 
   setInterval(this.checkState.bind(this), 10 * 60 * 1000);
+
+  this.log.info({state: 'initialized', url: this.url});
 };
 
 PullReq.prototype.checkState = function () {
@@ -51,34 +55,29 @@ PullReq.prototype.checkState = function () {
     uo.port = self.config.JENKINS_PORT.toString();
     uo.pathname = uo.pathname.replace(/\/\//g, '/');
     uo = u.format(uo);
+    // TODO XXX FIXME use jenkins library
     request.get({url: uo, qs: qs, json: true}, function (e, r, b) {
       if (e) {
-        console.log(e);
+        self.log.info(e);
         return cb();
       }
       if (b.building === false) {
         self.finished(url);
-        //console.log(b);
         cb();
       }
     });
   }, function () {});
 };
 
-var payloads = require('fs').createWriteStream('payloads')
-payloads.write('[\n');
-
 PullReq.prototype.github = function (payload) {
   var self = this, prpath, base, head;
-
-  payloads.write(JSON.stringify(payload) + ',\n');
 
   if (payload.pull_request && payload.action === 'synchronize') {
     base = payload.pull_request.base;
     prpath = '/' + base.repo.full_name;
     prpath += '/pull/' + payload.number;
 
-    console.log('got resync for', prpath);
+    self.log.info({prpath: prpath}, 'resync');
 
     self.db.get(prpath, function (err, pr) {
       if (err || !pr) return;
@@ -90,7 +89,7 @@ PullReq.prototype.github = function (payload) {
       };
 
       self.triggerBuild(self.jenkins, base.repo.name, prpath, 'Nodejs-Jenkins', opts, function (err, pr) {
-        console.log('scheduled ' + prpath);
+        self.log.info({prpath: prpath}, 'scheduled build');
       });
     });
   }
@@ -102,18 +101,18 @@ PullReq.prototype.github = function (payload) {
     prpath = '/' + base.repo.full_name;
     prpath += '/pull/' + payload.number;
 
-    console.log('pull req ' + prpath + ' ' + payload.action);
+    self.log.info({prpath: prpath}, 'opened');
 
     // TODO this should come from db
     if (self.config.WHITELIST[payload.sender.login]) {
-      console.log('initiating build for', prpath, payload.sender.login);
+      self.log.info({prpath: prpath}, 'initiated build');
       var opts = {
         PR: payload.number,
         PR_PATH: prpath,
         REBASE_BRANCH: base.ref,
       };
       self.triggerBuild(self.jenkins, base.repo.name, prpath, 'Nodejs-Jenkins', opts, function (err, pr) {
-        console.log('scheduled ' + prpath);
+        self.log.info({prpath: prpath}, 'scheduled build');
       });
     }
 
@@ -122,6 +121,7 @@ PullReq.prototype.github = function (payload) {
       .replace(/{base}/, base.sha)
       .replace(/{head}/, head.sha);
 
+    // TODO XXX FIXME restify
     request.get({url: url, json: true}, function (e, r, b) {
       var
         invalidCommits = [],
@@ -347,13 +347,12 @@ PullReq.prototype.finished = function (jurl) {
     depth: 2,
   }
 
-  console.log('finished', jurl);
+  self.log.info('finished', jurl);
 
   // TODO XXX FIXME jenkins restify client
   request.get({url: jurl + '/api/json', qs: qs, json: true}, function (e, r, build) {
     if (!build || e) {
-      console.log(e);
-      console.log(r);
+      self.log.info({err: e, url: jurl, res: r});
       return;
     }
 
@@ -366,7 +365,8 @@ PullReq.prototype.finished = function (jurl) {
       });
     });
 
-    console.log(params);
+    self.log.info({action: 'finished', params: params, url: jurl});
+
     if (!params.PR_PATH) return;
 
     var interested = params.PR_PATH;
@@ -379,12 +379,12 @@ PullReq.prototype.finished = function (jurl) {
       }
 
       if (pr.lastBuild > build.number) {
-        console.log('historical build, dropped', jurl, build.number);
+        self.log.info({action: 'dropped', pr: pr, url: url, build: build})
         delete self.interest[jurl];
         self.db.set('pullrequest-interest', JSON.stringify(self.interest));
         return;
       } else {
-        console.log('finished', jurl, pr);
+        self.log.info({action: 'finished', url: url, params: params, pr: pr});
       }
 
       var urls = [];
