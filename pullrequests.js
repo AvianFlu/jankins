@@ -50,15 +50,11 @@ PullReq.prototype.checkState = function () {
     depth: 0,
   };
   slide.asyncMap(urls, function (url, cb) {
-    var uo = u.parse(url + '/api/json');
-    uo.host = null;
-    uo.port = self.config.JENKINS_PORT.toString();
+    var uo = u.parse(url);
     uo.pathname = uo.pathname.replace(/\/\//g, '/');
-    uo = u.format(uo);
-    // TODO XXX FIXME use jenkins library
-    request.get({url: uo, qs: qs, json: true}, function (e, r, b) {
+    self.jenkins._api(uo.pathname, function (e, r, b) {
       if (e) {
-        self.log.info(e);
+        self.log.error(e);
         return cb();
       }
       if (b.building === false) {
