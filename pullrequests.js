@@ -302,6 +302,7 @@ PullReq.prototype.buildPR = function (req, res, next) {
     port: self.config.JENKINS_PORT,
     username: req.query.JENKINS_USERNAME,
     password: req.query.JENKINS_API_TOKEN,
+    log: self.log,
   });
 
   var opts = util._extend({
