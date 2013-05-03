@@ -1,6 +1,7 @@
 var GoogleClientLogin = require("googleclientlogin").GoogleClientLogin;
 var Jenkins = require('./jenkins');
-var request = require('request');
+var restify = require('restify');
+var qs = require('querystring');
 
 var CLA = module.exports = function (opts) {
   if (!(this instanceof CLA)) return new CLA(opts);
@@ -19,6 +20,7 @@ var CLA = module.exports = function (opts) {
       port: self.config.JENKINS_PORT,
       username: req.query.JENKINS_USERNAME,
       password: req.query.JENKINS_API_TOKEN,
+      log: self.log,
     });
 
     jenkins.validUser(function (valid) {
@@ -53,6 +55,7 @@ var CLA = module.exports = function (opts) {
       });
     });
   });
+  this.log.info({state: 'initialized', url: this.url});
 };
 
 CLA.prototype.login = function (cb) {
@@ -68,6 +71,21 @@ CLA.prototype.login = function (cb) {
 
   googleAuth.on(GoogleClientLogin.events.login, function(){
     self.auth = googleAuth.getAuthId();
+    var url = 'https://spreadsheets.google.com';
+
+    var reqopts = {
+      url: url,
+      headers: {
+        Authorization: 'GoogleLogin auth='+ self.auth,
+      },
+    };
+
+    self.log.info({reqopts: reqopts}, 'creating cla client');
+
+    reqopts.log = self.log;
+
+    self.client = restify.createJsonClient(reqopts);
+
     cb();
   });
   googleAuth.login();
@@ -79,25 +97,17 @@ CLA.prototype.query = function (query, cb) {
   if (!this.auth)
     return this.login(this.query.bind(this, query, cb));
 
-  var url = 'https://spreadsheets.google.com/feeds/list/'+ self.config.CLA_KEY +'/od6/private/full/'
+  var qstr = { alt: 'json', sq: query, };
+  var url = '/feeds/list/'+ self.config.CLA_KEY +'/od6/private/full?';
+  url += qs.stringify(qstr);
 
-  var reqopts = {
-    url: url,
-    json: true,
-    qs: {
-      alt: 'json',
-      sq: query,
-    },
-    headers: {
-      Authorization: 'GoogleLogin auth='+ self.auth,
-    },
-  }
+  self.log.info({query: query, url: url});
 
-  self.log.info(reqopts);
+  self.client.get(url, function (e, req, res, b) {
+    self.log.info({query: query, url: url, body: b, err: e}, 'we have a response');
 
-  // TODO XXX FIXME restify
-  request.get(reqopts, function (e, r, b) {
-    if (r.statusCode === 403) {
+    if (res.statusCode === 403) {
+      self.log.info({err: e, req: req, res: res}, 'logging into google docs');
       return self.login(self.query.bind(self, query, cb));
     }
 
