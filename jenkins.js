@@ -3,6 +3,7 @@
 var
   dgram = require('dgram'),
   EE = require('events').EventEmitter,
+  restify = require('restify'),
   request = require('request'),
   slide = require('slide'),
   qs = require('querystring'),
@@ -13,6 +14,8 @@ var Jenkins = module.exports = function (opts) {
   if (!(this instanceof Jenkins)) return new Jenkins(opts);
 
   EE.call(this);
+
+  this.log = opts.log.child({plugin: 'jenkins'})
 
   var fmt = {
     protocol: opts.ssl ? 'https' : 'http',
@@ -29,6 +32,12 @@ var Jenkins = module.exports = function (opts) {
 
   this.state = 'UNKNOWN';
 
+  this.client = restify.createJsonClient({
+    url: this.url,
+    version: '*',
+    log: this.log,
+  });
+
   if (opts.interval) {
     this.interval = Math.max(+opts.interval, 1000);
     this._checkStateInterval = setInterval(this._checkState.bind(this),
@@ -44,6 +53,8 @@ var Jenkins = module.exports = function (opts) {
     var host = opts.udp[1];
     this.udp.bind(port, host);
   }
+
+  this.log.info({state: 'initialized', url: this.url});
 };
 util.inherits(Jenkins, EE);
 
@@ -60,13 +71,10 @@ Jenkins.prototype._msg = function (msg) {
   }
 };
 
-Jenkins.prototype._api = function (command, parameters, json, cb) {
-  if (!(command instanceof Array)) command = [command];
+Jenkins.prototype._api = function (command, parameters, cb) {
+  var self = this;
 
-  if (!cb) {
-    cb = json;
-    json = true;
-  }
+  if (!(command instanceof Array)) command = [command];
 
   if (!cb) {
     cb = parameters;
@@ -76,17 +84,17 @@ Jenkins.prototype._api = function (command, parameters, json, cb) {
   if (command.length >= 1 && command[0])
     command.unshift('');
 
-  if (json)
-    command = command.concat(['api', 'json'])
+  command = command.concat(['api', 'json'])
 
-  var url = this.url + command.join('/');
+  var url = command.join('/');
 
   url += '?' + qs.stringify(parameters);
 
-  //console.log(url);
+  this.log.info({url: url});
 
-  request.get({url:url, json:true}, function (e, r, b) {
-    if (cb) cb(e, r, b);
+  this.client.get(url, function (e, req, res, body) {
+    self.log.info({url: url, body: body});
+    if (cb) cb(e, res, body);
   });
 };
 
@@ -132,7 +140,11 @@ Jenkins.prototype.build = function (job, parameters, cb) {
     parameters = undefined;
   }
 
-  this._api(['job', job, 'buildWithParameters'], parameters, false, cb);
+  var url = '/job/' + job + '/buildWithParameters?' + qs.stringify(parameters);
+  this.client.post(url, function (e, req, res, body) {
+    //self.log.info({url: url, body: body});
+    if (cb) cb(e, res, body);
+  });
 };
 
 Jenkins.prototype.buildReport = function (job, id, args, cb) {
@@ -175,6 +187,7 @@ Jenkins.prototype.artifacts = function (job, files, id, cb) {
     var results = {};
     var errs = [];
     slide.asyncMap(urls, function (url, cb) {
+      // TODO XXX FIXME should be restify
       request.get(url, function (e, r, b) {
         if (e) errs.push(e);
         if (b) results[url] = b;
