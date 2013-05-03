@@ -17,21 +17,6 @@ var
   url = require('url'),
   util = require('util');
 
-var log = bunyan.createLogger({
-  name: 'jankins',
-  streams: config.LOGS,
-});
-
-var jenkins = Jenkins({
-  hostname: config.JENKINS_HOSTNAME,
-  username: config.JENKINS_USER,
-  password: config.JENKINS_API_TOKEN,
-  port: config.JENKINS_PORT,
-  udp: config.UDP,
-  interval: config.CHECK_INTERVAL,
-  log: log,
-});
-
 config = util._extend({
   JENKINS_USER: undefined,
   JENKINS_API_TOKEN: undefined,
@@ -53,7 +38,24 @@ config = util._extend({
   }],
 }, config);
 
-var server = restify.createServer();
+var log = bunyan.createLogger({
+  name: 'jankins',
+  streams: config.LOGS,
+});
+
+var jenkins = Jenkins({
+  hostname: config.JENKINS_HOSTNAME,
+  username: config.JENKINS_USER,
+  password: config.JENKINS_API_TOKEN,
+  port: config.JENKINS_PORT,
+  udp: config.UDP,
+  interval: config.CHECK_INTERVAL,
+  log: log,
+});
+
+var server = restify.createServer({
+  log: log,
+});
 
 server
 .use(restify.acceptParser(server.acceptable))
@@ -69,6 +71,10 @@ server
 server.on('after', restify.auditLogger({
   log: log,
 }));
+
+server.on('uncaughtException', function (req, res, route, err) {
+  log.error(err);
+});
 
 server.listen(config.BIND_PORT, config.BIND_IP);
 
