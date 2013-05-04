@@ -17,6 +17,8 @@ var Jenkins = module.exports = function (opts) {
 
   this.log = opts.log.child({plugin: 'jenkins'})
 
+  this.config = opts;
+
   var fmt = {
     protocol: opts.ssl ? 'https' : 'http',
     hostname: opts.hostname,
@@ -88,13 +90,15 @@ Jenkins.prototype._api = function (command, parameters, cb) {
 
   var url = command.join('/');
 
+  url = url.replace(/\/\//g, '/');
+
   url += '?' + qs.stringify(parameters);
 
-  this.log.info({url: url});
+  this.log.info({url: url}, 'jenkins api call');
 
   this.client.get(url, function (e, req, res, body) {
-    if (e) self.log.error({url: url, err: e});
-    self.log.debug({url: url, body: body});
+    if (e) self.log.error({url: url, err: e, body: res.body});
+    self.log.debug({url: url, body: body}, 'jenkins api call result');
     if (cb) cb(e, res, body);
   });
 };
@@ -141,9 +145,26 @@ Jenkins.prototype.build = function (job, parameters, cb) {
     parameters = undefined;
   }
 
-  var url = '/job/' + job + '/buildWithParameters?' + qs.stringify(parameters);
-  this.client.post(url, function (e, req, res, body) {
-    //self.log.info({url: url, body: body});
+  var self = this;
+
+  var u = {
+    pathname: '/job/' + job + '/buildWithParameters',
+    protocol: this.config.ssl ? 'https' : 'http',
+    hostname: this.config.hostname,
+    password: this.config.password,
+    username: this.config.username,
+    auth: this.config.username + ':' + this.config.password,
+    port: this.config.port,
+  };
+
+  u = url.format(u);
+
+  this.log.info({url: u, parameters: parameters}, 'buildWithParameters');
+
+  // TODO XXX FIXME jenkins + restify is broken here as well
+  //this.client.get(u.pathname + '?' + qs.stringify(parameters),  function (e, req, res, body) {
+  require('request').get({url: u, json: true, qs: parameters}, function (e, res, body) {
+    self.log.info({url: url, body: body}, 'now building');
     if (cb) cb(e, res, body);
   });
 };

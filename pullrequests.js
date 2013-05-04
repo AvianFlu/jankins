@@ -49,14 +49,16 @@ PullReq.prototype.checkState = function () {
   var qs = {
     depth: 0,
   };
+  this.log.info({urls: urls}, 'checking state');
   slide.asyncMap(urls, function (url, cb) {
     var uo = u.parse(url);
-    uo.pathname = uo.pathname.replace(/\/\//g, '/');
-    self.jenkins._api(uo.pathname, function (e, r, b) {
+    self.log.info({url: uo.pathname}, 'query jenkins state');
+    self.jenkins._api(uo.pathname, qs, function (e, r, b) {
       if (e) {
         self.log.error(e);
         return cb();
       }
+      self.log.info({url: url, body: b}, 'jenkins state');
       if (b.building === false) {
         self.finished(url);
         cb();
@@ -276,6 +278,7 @@ PullReq.prototype.buildStarted = function (prpath, user, next, e, r, b) {
     pr.url = jurl;
 
     self.interest[jurl] = prpath;
+    self.log.info({prpath: prpath, url: jurl}, 'now interested');
 
     self.db.set('pullrequest-interest', JSON.stringify(self.interest), function (err, rres) {
       // TODO cancel interest?
@@ -334,6 +337,7 @@ PullReq.prototype.buildPR = function (req, res, next) {
 };
 
 PullReq.prototype.triggerBuild = function (jenkins, repo, path, user, opts, next) {
+  this.log.info({repo: repo, path: path, user: user, opts: opts}, 'build started');
   jenkins.build(repo + '-pullrequest', opts, this.buildStarted.bind(this, path, user, next));
 };
 
@@ -348,12 +352,15 @@ PullReq.prototype.finished = function (jurl) {
   self.log.info({action: 'finished', url: jurl, path: oj}, 'finished');
 
   self.jenkins._api(oj, qs, function (e, r, build) {
+    self.log.info({url: oj, body: build, err: e});
     if (!build || e) {
       self.log.info({err: e, url: jurl, res: r});
       return;
     }
 
     var params = {};
+
+    build.actions = build.actions || [];
 
     build.actions.forEach(function (action) {
       if (!action.parameters) return;
