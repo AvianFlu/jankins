@@ -114,7 +114,7 @@ server.post(/\/github-webhook\/?/, function (req, res, next) {
 
   if (payload) {
     process.nextTick(function () {
-      log.info({github: payload, req: req, res: res});
+      log.info({github: payload, headers: req.headers});
       server.emit('github', payload);
     });
   }
@@ -166,6 +166,7 @@ var ghrest = restify.createJsonClient({
   url: 'https://api.github.com',
   version: '*',
   userAgent: 'github-youre-absurd/9001.0 (Useless)',
+  log: log,
 });
 
 var opts = {
