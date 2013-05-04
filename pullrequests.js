@@ -344,9 +344,10 @@ PullReq.prototype.finished = function (jurl) {
     depth: 2,
   }
 
-  self.log.info('finished', jurl);
+  var oj = u.parse(jurl).pathname;
+  self.log.info({action: 'finished', url: jurl, path: oj}, 'finished');
 
-  self.jenkins._api(u.parse(jurl).pathname, qs, function (e, r, build) {
+  self.jenkins._api(oj, qs, function (e, r, build) {
     if (!build || e) {
       self.log.info({err: e, url: jurl, res: r});
       return;
