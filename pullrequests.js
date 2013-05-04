@@ -114,18 +114,22 @@ PullReq.prototype.github = function (payload) {
       });
     }
 
-    // TODO there's probably a saner way to do this, like prpath/commits
-    var url = head.repo.compare_url
-      .replace(/{base}/, base.sha)
-      .replace(/{head}/, head.sha);
+    var url = payload.pull_request.url + '/commits';
 
-    // TODO XXX FIXME restify
-    request.get({url: url, json: true}, function (e, r, b) {
+    this.log.info({url: url}, 'checking commits for value');
+    this.ghrest.get(u.parse(url).pathname, function (e, req, res, b) {
+      if (e) {
+        self.log.error({err: e, req: req, res: res, body: b});
+        return;
+      }
+
       var
         invalidCommits = [],
         emails = {};
 
-      b.commits.forEach(function (commit) {
+      self.log.info({url: url, commits: b});
+
+      b.forEach(function (commit) {
         var errors = [];
 
         var messageLines = commit.commit.message.split(/\n/);
