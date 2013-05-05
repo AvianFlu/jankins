@@ -1,0 +1,18 @@
+CREATE TABLE IF NOT EXISTS
+pull_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pr TEXT NOT NULL,
+  url TEXT,
+  buildNumber INTEGER,
+  created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  started_by TEXT,
+  status TEXT,
+  results TEXT
+);
+
+CREATE TABLE IF NOT EXISTS
+whitelist (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL,
+  ghtoken TEXT
+);

@@ -4,6 +4,7 @@ var
   Benchmark = require('./benchit'),
   bunyan = require('bunyan'),
   config = require('./config'),
+  fs = require('fs'),
   Github = require('github'),
   GHApi = require('./ghapi'),
   httpProxy = require('http-proxy'),
@@ -11,9 +12,9 @@ var
   Nightlies = require('./nightlies'),
   path = require('path'),
   PullReq = require('./pullrequests'),
-  redis = require('redis'),
   restify = require('restify'),
   request = require('request'),
+  sqlite3 = require('sqlite3'),
   url = require('url'),
   util = require('util');
 
@@ -41,6 +42,7 @@ config = util._extend({
 var log = bunyan.createLogger({
   name: 'jankins',
   streams: config.LOGS,
+  serializers: bunyan.stdSerializers,
 });
 
 var jenkins = Jenkins({
@@ -140,21 +142,13 @@ server.get(/html\/.*/, restify.serveStatic({
   directory: __dirname,
 }));
 
-var db = redis.createClient();
+var db = new sqlite3.Database(config.DB);
 
-var _set = db.set;
-db.set = function (key, obj, cb) {
-  key = config.DB_PREFIX+key;
-  log.info({db: 'set', key: key, value: obj});
-  return _set.call(this, key, obj, cb);
-};
+db.on('error', function (err) {
+  log.error({plugin: 'db', err: err});
+});
 
-var _get = db.get;
-db.get = function (key, cb) {
-  key = config.DB_PREFIX+key;
-  log.info({db: 'get', key: key});
-  return _get.call(this, key, cb);
-};
+db.exec(fs.readFileSync('./jankins.sql', 'utf8'));
 
 var github = new Github({ version: '3.0.0', debug: true });
 github.authenticate({

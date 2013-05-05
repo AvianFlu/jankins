@@ -19,4 +19,5 @@ module.exports = {
     period: '1d',
     count: 5,
   }],
+  DB: 'jankins.db',
 };

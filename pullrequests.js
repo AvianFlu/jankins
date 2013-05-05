@@ -25,12 +25,7 @@ var PullReq = module.exports = function (opts) {
 
   this.interest;
 
-  var self = this;
-
-  self.db.get('pullrequest-interest', function (err, obj) {
-    self.interest = obj ? JSON.parse(obj) : {};
-    self.checkState();
-  });
+  this.checkState();
 
   this.server.on('github', this.github.bind(this));
   this.server.get('/:user/:repo/pull/:id', this.getPR.bind(this));
@@ -45,12 +40,11 @@ var PullReq = module.exports = function (opts) {
 
 PullReq.prototype.checkState = function () {
   var self = this;
-  var urls = Object.keys(this.interest);
   var qs = {
     depth: 0,
   };
-  this.log.info({urls: urls}, 'checking state');
-  slide.asyncMap(urls, function (url, cb) {
+  this.db.each("SELECT url FROM pull_requests WHERE url IS NOT NULL AND status = 'BUILDING'", function (err, row) {
+    var url = row.url;
     var uo = u.parse(url);
     self.log.info({url: uo.pathname}, 'query jenkins state');
     self.jenkins._api(uo.pathname, qs, function (e, r, b) {
@@ -61,10 +55,9 @@ PullReq.prototype.checkState = function () {
       self.log.info({url: url, body: b}, 'jenkins state');
       if (b.building === false) {
         self.finished(url);
-        cb();
       }
     });
-  }, function () {});
+  });
 };
 
 PullReq.prototype.github = function (payload) {
@@ -77,14 +70,24 @@ PullReq.prototype.github = function (payload) {
 
     self.log.info({prpath: prpath}, 'resync');
 
-    self.db.get(prpath, function (err, pr) {
-      if (err || !pr) return;
+    self.db.get("SELECT COUNT(*) FROM pull_requests WHERE pr = ?", prpath, function (err, pr) {
+      if (err) {
+        self.log.error({prpath: prpath, err: err});
+        return;
+      }
+
+      if (!pr) {
+        self.log.info({prpath: prpath}, 'not found');
+        return;
+      }
 
       var opts = {
         PR: payload.number,
         PR_PATH: prpath,
         REBASE_BRANCH: base.ref,
       };
+
+      self.log.info({prpath: prpath, opts: opts}, 'already built, scheduling rebuild');
 
       self.triggerBuild(self.jenkins, base.repo.name, prpath, 'Nodejs-Jenkins', opts, function (err, pr) {
         self.log.info({prpath: prpath}, 'scheduled build');
@@ -101,18 +104,29 @@ PullReq.prototype.github = function (payload) {
 
     self.log.info({prpath: prpath}, 'opened');
 
-    // TODO this should come from db
-    if (self.config.WHITELIST[payload.sender.login]) {
-      self.log.info({prpath: prpath}, 'initiated build');
+    self.db.get('SELECT * FROM whitelist WHERE username = ?', payload.sender.login, function (err, user) {
+      if (err) {
+        self.log.error({user: payload.sender.login, err: err});
+        return;
+      }
+
+      if (!user) {
+        self.log.info({user: payload.sender.login}, 'not a whitelisted user');
+        return;
+      }
+
       var opts = {
         PR: payload.number,
         PR_PATH: prpath,
         REBASE_BRANCH: base.ref,
       };
+
+      self.log.info({prpath: prpath, user: user.username, opts: opts}, 'initiated build');
+
       self.triggerBuild(self.jenkins, base.repo.name, prpath, 'Nodejs-Jenkins', opts, function (err, pr) {
         self.log.info({prpath: prpath}, 'scheduled build');
       });
-    }
+    });
 
     var url = payload.pull_request.url + '/commits';
 
@@ -217,18 +231,21 @@ PullReq.prototype.github = function (payload) {
 
 PullReq.prototype.getPR = function (req, res, next) {
   var self = this;
-  self.db.get(req.path(), function (err, obj) {
+  self.db.get("SELECT * FROM pull_requests WHERE pr = ? ORDER BY created, buildNumber DESC LIMIT 1",
+    req.path(), function (err, pr) {
+
     if (err) return next(err);
 
-    if (!obj) {
-      obj = {
+    if (!pr) {
+      pr = {
         status: 'UNKNOWN',
       };
-    } else {
-      obj = JSON.parse(obj);
     }
 
-    res.json(200, obj);
+    if (pr.results)
+      pr.result = JSON.parse(pr.results);
+
+    res.json(200, pr);
     return next();
   });
 };
@@ -266,35 +283,27 @@ PullReq.prototype.buildStarted = function (prpath, user, next, e, r, b) {
 
   self.setStatus(prpath, 'pending');
 
-  self.db.get(prpath, function (err, pr) {
+  var pr = {};
+
+  pr.status = 'BUILDING';
+  pr.started = Date.now();
+  pr.by = user;
+
+  var jurl = b.url + b.nextBuildNumber + '/';
+
+  pr.lastBuild = b.nextBuildNumber;
+  pr.url = jurl;
+
+  self.log.info({prpath: prpath, url: jurl}, 'now interested');
+
+  var cmd = "INSERT INTO pull_requests (pr, url, started_by, status, buildNumber) ";
+  cmd += "VALUES (?, ?, ?, ?, ?)";
+
+  var params = [prpath, jurl, user, 'BUILDING', b.nextBuildNumber];
+
+  self.db.run(cmd, params, function (err, result) {
     if (err) return next(err);
-
-    if (pr) pr = JSON.parse(pr);
-    else pr = {};
-
-    pr.status = 'BUILDING';
-    pr.started = Date.now();
-    pr.by = user;
-
-    var jurl = b.url + b.nextBuildNumber + '/';
-
-    pr.lastBuild = b.nextBuildNumber;
-    pr.url = jurl;
-
-    self.interest[jurl] = prpath;
-    self.log.info({prpath: prpath, url: jurl}, 'now interested');
-
-    self.db.set('pullrequest-interest', JSON.stringify(self.interest), function (err, rres) {
-      // TODO cancel interest?
-      if (err) return next(err);
-
-      self.db.set(prpath, JSON.stringify(pr), function (err, rres) {
-        // TODO cancel interest?
-        if (err) return next(err);
-
-        return next(null, pr);
-      });
-    });
+    return next(null, pr);
   });
 };
 
@@ -364,13 +373,19 @@ PullReq.prototype.finished = function (jurl) {
 
     var params = {};
 
+    var user;
+
     build.actions = build.actions || [];
 
     build.actions.forEach(function (action) {
-      if (!action.parameters) return;
-      action.parameters.forEach(function (parameter) {
-        params[parameter.name] = parameter.value;
-      });
+      if (action.parameters) {
+        action.parameters.forEach(function (parameter) {
+          params[parameter.name] = parameter.value;
+        });
+      }
+
+      if (action.causes)
+        user = action.causes[0].userId;
     });
 
     self.log.info({action: 'finished', params: params, url: jurl});
@@ -379,21 +394,21 @@ PullReq.prototype.finished = function (jurl) {
 
     var interested = params.PR_PATH;
 
-    self.db.get(interested, function (err, pr) {
-      if (!pr) {
-        pr = {};
-      } else {
-        pr = JSON.parse(pr);
+    self.db.get("DELETE FROM pull_requests WHERE url = ?", [jurl], function (err, pr) {
+      if (err) {
+        self.log.error({prpath: interested, err: err});
+        return;
       }
 
-      if (pr.lastBuild > build.number) {
-        self.log.info({action: 'dropped', pr: pr, url: url, build: build})
-        delete self.interest[jurl];
-        self.db.set('pullrequest-interest', JSON.stringify(self.interest));
-        return;
-      } else {
-        self.log.info({action: 'finished', url: jurl, params: params, pr: pr});
-      }
+      if (!pr)
+        pr = {};
+
+      pr.pr = interested;
+      pr.buildNumber = build.number;
+      pr.user = user;
+      pr.created = new Date(build.timestamp);
+
+      self.log.info({action: 'finished', url: jurl, params: params, pr: pr});
 
       var urls = [];
       build.runs.forEach(function (run) {
@@ -422,7 +437,10 @@ PullReq.prototype.finished = function (jurl) {
         testresults = tap.createConsumer();
         results[key] = [];
 
+        self.log.info({url: url}, 'downloading artifact');
+
         request.get(url).pipe(testresults).once('end', function () {
+          self.log.info({url: url, test: testresults.results.list}, 'parsing test result');
           testresults.results.list.forEach(function (test) {
             if (!test.ok) {
               results[key].push({
@@ -439,6 +457,8 @@ PullReq.prototype.finished = function (jurl) {
         pr.status = build.result;
         pr.url = jurl;
         pr.result = results;
+
+        self.log.info({prpath: pr.pr, results: results}, 'finished with results');
 
         var state;
 
@@ -468,12 +488,27 @@ PullReq.prototype.finished = function (jurl) {
 
         self.setStatus(interested, state, msg, jurl);
 
-        self.db.set(interested, JSON.stringify(pr), function (err, res) {
+        var sql = '';
+        sql += "INSERT INTO pull_requests(pr, url, buildNumber, started_by, status, results, created) ";
+        sql += "VALUES (?, ?, ?, ?, ?, ?, ?)";
+
+        var params = [
+          pr.pr,
+          pr.url,
+          pr.buildNumber,
+          pr.user,
+          pr.status,
+          JSON.stringify(pr.result),
+          pr.created,
+        ];
+
+        self.db.run(sql, params, function (err, res) {
+          if (err) {
+            self.log.error({sql: sql, err: err});
+            return;
+          }
           // TODO trigger any websockets?
         });
-
-        delete self.interest[jurl];
-        self.db.set('pullrequest-interest', JSON.stringify(self.interest));
       });
     });
   });
