@@ -50,7 +50,7 @@ PullReq.prototype.checkState = function () {
     self.jenkins._api(uo.pathname, qs, function (e, r, b) {
       if (e) {
         self.log.error(e);
-        return cb();
+        return;
       }
       self.log.info({url: url, body: b}, 'jenkins state');
       if (b.building === false) {
