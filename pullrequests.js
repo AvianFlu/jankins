@@ -231,7 +231,7 @@ PullReq.prototype.github = function (payload) {
 
 PullReq.prototype.getPR = function (req, res, next) {
   var self = this;
-  self.db.get("SELECT * FROM pull_requests WHERE pr = ? ORDER BY created, buildNumber DESC LIMIT 1",
+  self.db.get("SELECT * FROM pull_requests WHERE pr = ? ORDER BY buildNumber DESC LIMIT 1",
     req.path(), function (err, pr) {
 
     if (err) return next(err);
