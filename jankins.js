@@ -14,6 +14,7 @@ var
   PullReq = require('./pullrequests'),
   restify = require('restify'),
   request = require('request'),
+  Review = require('./review'),
   sqlite3 = require('sqlite3'),
   url = require('url'),
   util = require('util');
@@ -117,7 +118,7 @@ server.post(/\/github-webhook\/?/, function (req, res, next) {
   if (payload) {
     process.nextTick(function () {
       log.info({github: payload, headers: req.headers});
-      server.emit('github', payload);
+      server.emit('github', payload, req.headers['x-github-event']);
     });
   }
 
@@ -177,3 +178,4 @@ var PR = PullReq(opts);
 //var BM = Benchmark(opts);
 var NL = Nightlies(opts);
 var GHAPI = GHApi(opts);
+var RV = Review(opts);
