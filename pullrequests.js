@@ -212,6 +212,8 @@ PullReq.prototype.github = function (payload) {
             + ' will be considered for inclusion.'].concat(mdwn);
 
           mdwn.push('');
+          mdwn.push('You can fix all these things *without* opening another issue.');
+          mdwn.push('');
           mdwn.push('Please see [CONTRIBUTING.md](https://github.com/joyent/node/blob/master/CONTRIBUTING.md) for more information');
 
           var r = {
