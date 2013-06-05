@@ -60,8 +60,72 @@ PullReq.prototype.checkState = function () {
   });
 };
 
-PullReq.prototype.github = function (payload) {
+PullReq.prototype.syncLabels = function (pr) {
+  var branch = pr.base.ref;
+
+  if (!/^(master|v\d+.\d+)$/.test(branch)) {
+    this.log.info({ pullrequest: pr }, 'ignoring pr for nonversion branch');
+    return;
+  }
+
+  var self = this;
+
+  var user = pr.base.repo.owner.login;
+  var repo = pr.base.repo.name;
+
+  var opts = {
+    user: user,
+    repo: repo,
+    number: pr.number,
+  };
+
+  self.gh.issues.getRepoIssue(opts, function (err, issue) {
+    if (err) {
+      self.log.error({pullreq: pr, err: err}, 'failed to get issue for pull request');
+      return;
+    }
+
+    var labels = {};
+
+    issue.labels.forEach(function (label) {
+      labels[label.name] = true;
+    });
+
+    if (labels.pr) {
+      self.log.info({ pullreq: pr, issue: issue, labels: labels}, 'already tagged');
+      return;
+    }
+
+    labels.pr = true;
+    labels[branch] = true;
+
+    var edit = {
+      user: user,
+      repo: repo,
+      number: pr.number,
+      title: pr.title,
+      labels: Object.keys(labels),
+    };
+
+    self.gh.issues.edit(edit, function (err, ni) {
+      if (err) {
+        self.log.error({err: err, pullreq: pr, issue: issue, edit: edit}, 'failed to edit issue with new labels');
+        return;
+      }
+      self.log.info({edit: edit}, 'added labels to issue');
+    });
+  });
+};
+
+PullReq.prototype.github = function (payload, evt) {
   var self = this, prpath, base, head;
+
+  if (evt !== 'pull_request') {
+    self.log.info({event: evt}, 'pull requests ignoring event');
+    return;
+  }
+
+  this.syncLabels(payload.pull_request);
 
   if (payload.pull_request && payload.action === 'synchronize') {
     base = payload.pull_request.base;
