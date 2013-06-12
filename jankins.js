@@ -115,11 +115,18 @@ server.post(/\/github-webhook\/?/, function (req, res, next) {
     payload = req.params;
   }
 
+  var githubEvent = req.headers['x-github-event'];
+
   if (payload) {
     process.nextTick(function () {
       log.info({github: payload, headers: req.headers});
-      server.emit('github', payload, req.headers['x-github-event']);
+      server.emit('github', payload, githubEvent);
     });
+  }
+
+  if (githubEvent != 'push') {
+    res.send(200);
+    return next();
   }
 
   // this isn't as robust as we want because of redirects?
