@@ -14,6 +14,7 @@ var
   PullReq = require('./pullrequests'),
   restify = require('restify'),
   request = require('request'),
+  RepoCache = require('./repo_cache'),
   Review = require('./review'),
   sqlite3 = require('sqlite3'),
   url = require('url'),
@@ -71,9 +72,9 @@ server
 //.use(restify.conditionalRequest())
 ;
 
-server.on('after', restify.auditLogger({
-  log: log,
-}));
+//server.on('after', restify.auditLogger({
+//  log: log,
+//}));
 
 server.on('uncaughtException', function (req, res, route, err) {
   log.error(err);
@@ -146,7 +147,7 @@ server.post(/\/github-webhook\/?/, function (req, res, next) {
   });
 });
 
-server.get(/html\/.*/, restify.serveStatic({
+server.get(/^\/html\/.*/, restify.serveStatic({
   directory: __dirname,
 }));
 
@@ -186,3 +187,4 @@ var PR = PullReq(opts);
 var NL = Nightlies(opts);
 var GHAPI = GHApi(opts);
 var RV = Review(opts);
+var RC = RepoCache(opts);
