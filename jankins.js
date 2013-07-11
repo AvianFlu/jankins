@@ -80,14 +80,7 @@ server.on('uncaughtException', function (req, res, route, err) {
   log.error(err);
 });
 
-server.listen(config.BIND_PORT, config.BIND_IP);
-
-var proxy = new httpProxy.HttpProxy({
-  target: {
-    host: config.JENKINS_HOSTNAME,
-    port: config.JENKINS_PORT,
-  },
-});
+server.listen();
 
 server.on('NotFound', function (req, res, next) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -100,11 +93,13 @@ server.on('NotFound', function (req, res, next) {
     res.send(204);
     return next();
   }
-  log.info({proxy: true, url: req.path()});
-  proxy.proxyRequest(req, res);
+  log.info({url: req.path()}, 'not found');
+  res.send(404);
+  //log.info({proxy: true, url: req.path()});
+  //proxy.proxyRequest(req, res);
 });
 
-server.post(/\/github-webhook\/?/, function (req, res, next) {
+server.post(/^\/github-webhook\/?/, function (req, res, next) {
   var payload;
 
   if (req.params.payload) {
@@ -188,3 +183,31 @@ var NL = Nightlies(opts);
 var GHAPI = GHApi(opts);
 var RV = Review(opts);
 var RC = RepoCache(opts);
+
+var restifyAddress = '127.0.0.1:' + server.address().port;
+
+var routes = {
+  'jenkins.nodejs.org/github-webhook.*': restifyAddress,
+  'jenkins.nodejs.org/ghapi.*': restifyAddress,
+  'jenkins.nodejs.org/cla.*': restifyAddress,
+  'jenkins.nodejs.org/html.*': restifyAddress,
+  'jenkins.nodejs.org/nightl.*': restifyAddress,
+  'jenkins.nodejs.org/\w+/\w+/pull/\d+.*': restifyAddress,
+  'jenkins.nodejs.org': config.JENKINS_HOSTNAME + ':' + config.JENKINS_PORT,
+};
+
+//console.log(Object.keys(server.router.reverse));
+
+var proxy = new httpProxy.RoutingProxy({
+  router: routes,
+})
+
+//console.log(util.inspect(proxy.proxyTable.routes));
+
+require('http').createServer(function (req, res) {
+  proxy.proxyRequest(req, res);
+}).listen(config.BIND_PORT, config.BIND_IP);
+
+proxy.on('start', function (req, res, target) {
+  log.debug({proxy: true, url: req.path(), target: {host: target.host, port: target.port}}, 'proxying');
+});
