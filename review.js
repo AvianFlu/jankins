@@ -34,7 +34,7 @@ Review.prototype.github = function (payload, evt) {
   }
 
   var self = this;
-  var opts = {GIT_BRANCH: payload.ref};
+  var opts = {GIT_BRANCH: payload.ref.replace('refs/heads/', '')};
   var name = payload.repository.name + '-review';
 
   this.log.info({opts: opts, jobName: name}, 'triggering random branch build');
