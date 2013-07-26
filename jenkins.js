@@ -97,7 +97,7 @@ Jenkins.prototype._api = function (command, parameters, cb) {
   this.log.info({url: url}, 'jenkins api call');
 
   this.client.get(url, function (e, req, res, body) {
-    if (e) self.log.error({url: url, err: e, body: res.body});
+    if (e) self.log.error({url: url, err: e, body: res});
     self.log.debug({url: url, body: body}, 'jenkins api call result');
     if (cb) cb(e, res, body);
   });
