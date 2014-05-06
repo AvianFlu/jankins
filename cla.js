@@ -135,6 +135,9 @@ CLA.prototype.full_or_email = function (name, email, cb) {
 };
 
 CLA.prototype.emails = function (emails, cb) {
-  var q = emails.map(function (e) { return '"e-mail" = "' + e + '"'; }).join(' OR ');
+  var q = emails.map(function (e) { return '"e-mail" = "' + e + '"'; })
+  // Only add the OR if there's more than one email
+  if (q.length > 1) q = q.join(' OR ');
+  else q = q[0];
   this.query(q, cb);
 };
